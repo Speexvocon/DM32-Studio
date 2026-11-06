@@ -1,0 +1,17 @@
+{
+  "application": "DM32 Studio",
+  "source_revision": "f55d506ca01b5dd81e299ef4596025f163464f1a",
+  "logical_protocol_versions": [
+    1,
+    2,
+    3
+  ],
+  "assets": {
+    "index.html": "de1b90e7f5d289a86905c10e076c78f27f9f6f405714b83e5ff0b6c55ef766a7",
+    "app.js": "8d0138c59fb0e2ff99fb7123bb309205ead4d8b16f2bf75ee0037fc032dc0e28",
+    "model.js": "2214c217cb50e6b4138c3715db75b0ccc4374d1f82e4c55713961be2dfdd6141",
+    "transport.js": "fc3a2a213f881f3a9c80c4e9fe14c58e75ec0eb27f9685de9a625159beda4da6",
+    "styles.css": "9529dd9c8af8fb89bbbabcaad6b2d682105e2055e43ca07e65c8faa793405454",
+    "vendor/undo.js": "034fd4a3439add324b0d1205fc0e840c9e2f2db31b64eebb5ec4874e9661b4ed"
+  }
+}
