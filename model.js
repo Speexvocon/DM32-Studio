@@ -6,7 +6,7 @@ export const RECORD_COUNT = 35;
 export const MEMORY_COUNT = 32;
 export const FILTERS = Object.freeze(["NAC", "PROM", "NAC+TG"]);
 export const POWER_LEVELS = Object.freeze(["L−", "L", "L+", "L++", "M", "M+", "M++", "H−", "H"]);
-export const BUTTON_ACTIONS = Object.freeze(["Default", "None", "VFO / memory", "Switch A / B", "Scan", "Cycle TX power", "FM broadcast", "Radio status", "Keypad lock"]);
+export const BUTTON_ACTIONS = Object.freeze(["Default", "None", "Frequency / Channel", "Switch A / B", "Scan", "Cycle TX power", "FM broadcast", "Radio status", "Keypad lock"]);
 
 const PAYLOAD_BYTES = RECORD_BYTES * RECORD_COUNT;
 const MODES = ["P25", "NFM", "FM", "DMR"];
@@ -146,7 +146,7 @@ export function validateModel(model) {
     for (const key of ["selectionA", "selectionB"]) {
         const selection = model.settings[key];
         if (integer(selection, 1, MEMORY_COUNT) && Array.isArray(model.channels) && !model.channels[selection - 1]) {
-            errors.push({ path: `settings.${key}`, message: "Selected memory is empty; select VFO or an occupied memory" });
+            errors.push({ path: `settings.${key}`, message: "Selected channel memory is empty; choose Frequency mode or an occupied Channel" });
         }
     }
     return errors;

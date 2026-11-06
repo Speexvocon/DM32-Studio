@@ -197,7 +197,7 @@ function render() {
   const sidebar = root.querySelector('.sidebar');
   sidebar.replaceChildren(h('div', { class: 'eyebrow sidebar-label' }, 'Codeplug'),
     h('nav', { class: 'tab-list', role: 'tablist', 'aria-label': 'Codeplug sections' },
-      [['channels', 'Channels', 'channels', occupied()], ['vfos', 'VFO A / B', 'vfo', 2],
+      [['channels', 'Channels', 'channels', occupied()], ['vfos', 'Frequency A / B', 'vfo', 2],
         ['scan', 'Scan lists', 'scan', 4], ['settings', 'Radio settings', 'settings', null],
         ['functions', 'Functions', 'radio', null],
         ['problems', 'Problems', issues.length ? 'alert' : 'check', issues.length]].map(([id, title, glyph, count]) =>
@@ -216,9 +216,9 @@ function renderContent(issues = problems()) {
   const view = document.getElementById('main-view');
   const labels = {
     channels: ['Channels', 'Build a useful radio, one memory at a time. Frequencies are in MHz.'],
-    vfos: ['VFO A / B', 'Two independent profiles, with one active receiver. Choose the starting context in Radio settings.'],
+    vfos: ['Frequency (VFO A / B)', 'Edit the Frequency profiles here. Radio settings chooses Frequency or a saved Channel for each side. A/B share one receiver.'],
     scan: ['Scan lists', 'Keep up to four overlapping groups of channels. Membership is saved; scanning is started on the radio.'],
-    settings: ['Radio settings', 'Digital radio identity, microphone gain and starting contexts.'],
+    settings: ['Radio settings', 'Digital radio identity, microphone gain and starting mode for each side.'],
     functions: ['Functions', 'Transmit controls, programmable buttons, FM broadcast and display behavior.'],
     problems: ['Codeplug checks', 'Resolve these settings before saving or writing. Checks never transmit or change the radio.'],
   };
@@ -366,7 +366,7 @@ function editChannel(table, index) {
   if (S.busy) return;
   const exists = Boolean(S.model[table][index]);
   const candidate = clone(S.model[table][index] || defaultChannel(table === 'channels' ? `CH ${index + 1}` : `VFO ${index ? 'B' : 'A'}`));
-  const title = table === 'channels' ? `Memory ${String(index + 1).padStart(2, '0')}` : `VFO ${index ? 'B' : 'A'}`;
+  const title = table === 'channels' ? `Memory ${String(index + 1).padStart(2, '0')}` : `Frequency (VFO ${index ? 'B' : 'A'})`;
   const form = h('form');
   const errors = h('div', { class: 'dialog-error', role: 'alert', hidden: true });
   const name = input(candidate.name, null, { maxlength: 12, required: false, autocomplete: 'off' });
@@ -492,7 +492,7 @@ function vfoView() {
     const selection = index ? S.model.settings.selectionB : S.model.settings.selectionA;
     return h('section', { class: 'panel vfo-card' },
       h('div', { class: 'panel-heading' }, h('div', { class: 'vfo-title' }, h('span', { class: 'vfo-letter' }, index ? 'B' : 'A'),
-        h('h2', {}, `VFO ${index ? 'B' : 'A'}`)), badge(selected ? 'ACTIVE CONTEXT' : 'STANDBY', selected ? '' : 'neutral')),
+        h('h2', {}, `Frequency · VFO ${index ? 'B' : 'A'}`)), badge(selected ? 'ACTIVE SIDE' : 'STANDBY', selected ? '' : 'neutral')),
       h('div', { class: 'panel-body' }, channel ? [
         h('div', { class: 'frequency-display mono' }, fmtFrequency(channel.rxHz), h('span', {}, 'MHz')),
         h('div', { class: 'vfo-name' }, channel.name || 'Unnamed VFO', ' · ', channel.mode === 'NFM' ? 'Narrow FM' : channel.mode === 'FM' ? 'Wide FM' : channel.mode === 'DMR' ? 'DMR digital' : 'P25 digital'),
@@ -502,11 +502,11 @@ function vfoView() {
               ['Color code / slot', `${channel.colorCode} / ${channel.timeslot}`], ['Operation', channel.repeater ? 'Repeater / hotspot' : 'Direct']] :
             [['TX / RX tone', `${toneText(channel.txTone) || 'None'} / ${toneText(channel.rxTone) || 'None'}`], ['Squelch', channel.squelch]]),
           ['Transmit power', POWER_LEVELS[channel.powerLevel]],
-          ['Context selection', selection ? `Memory ${selection}` : `VFO ${index ? 'B' : 'A'}`]].map(([key, value]) =>
+          ['Side starts in', selection ? `Channel · memory ${String(selection).padStart(2, '0')}` : `Frequency · VFO ${index ? 'B' : 'A'}`]].map(([key, value]) =>
           h('div', { class: 'definition-row' }, h('dt', {}, key), h('dd', {}, value)))),
-      ] : [h('div', { class: 'frequency-display muted' }, 'Not configured'), h('p', { class: 'section-intro' }, 'Give this VFO its own frequency and mode.')],
-      h('div', { class: 'card-actions' }, button(channel ? 'Edit VFO' : 'Configure VFO', () => editChannel('vfos', index), { kind: 'primary', glyph: 'edit' }),
-        button('Use this VFO', () => change(`Select VFO ${index ? 'B' : 'A'}`, () => {
+      ] : [h('div', { class: 'frequency-display muted' }, 'Not configured'), h('p', { class: 'section-intro' }, 'Give this Frequency profile its own frequency and mode.')],
+      h('div', { class: 'card-actions' }, button(channel ? 'Edit frequency' : 'Configure frequency', () => editChannel('vfos', index), { kind: 'primary', glyph: 'edit' }),
+        button('Use Frequency', () => change(`Select Frequency VFO ${index ? 'B' : 'A'}`, () => {
           S.model.settings.activeVfo = index;
           S.model.settings[index ? 'selectionB' : 'selectionA'] = 0;
         }), { disabled: !channel || (selected && !selection) }))));
@@ -541,15 +541,15 @@ function settingsView() {
     change('Edit radio settings', () => { settings[key] = value; });
   };
   const numeric = (key, min, max, suffix = '') => input(settings[key], update(key), { type: 'number', min, max, step: 1, 'aria-label': suffix || key });
-  const choices = index => [[0, `VFO ${index ? 'B' : 'A'}`], ...S.model.channels.flatMap((channel, i) => channel ? [[i + 1, `${String(i + 1).padStart(2, '0')} · ${channel.name || 'Unnamed'}`]] : [])];
+  const choices = index => [[0, `Frequency · VFO ${index ? 'B' : 'A'}`], ...S.model.channels.flatMap((channel, i) => channel ? [[i + 1, `Channel ${String(i + 1).padStart(2, '0')} · ${channel.name || 'Unnamed'}`]] : [])];
   return h('div', { class: 'settings-grid' },
     settingPanel('Radio identity', 'Identity shared by P25 and DMR transmissions.',
       field('Source / radio ID', numeric('sourceId', 1, 16777215, 'Digital source radio ID'), '1–16777215. Confirm the ID appropriate for your network.'),
       field('Digital microphone gain · dB', numeric('micGainDb', 0, 42, 'Digital microphone gain dB'), '0–42 dB, shared by P25 and DMR. Analog FM uses its native microphone gain.')),
-    settingPanel('Starting context', 'These selections are saved with the codeplug.',
-      field('Active VFO context', select([[0, 'A'], [1, 'B']], settings.activeVfo, update('activeVfo'))),
-      field('Context A uses', select(choices(0), settings.selectionA, update('selectionA'))),
-      field('Context B uses', select(choices(1), settings.selectionB, update('selectionB'))),
+    settingPanel('Starting mode & side', 'Frequency uses an editable VFO; Channel recalls a saved memory.',
+      field('Active side', select([[0, 'A'], [1, 'B']], settings.activeVfo, update('activeVfo'))),
+      field('Side A starts in', select(choices(0), settings.selectionA, update('selectionA'))),
+      field('Side B starts in', select(choices(1), settings.selectionB, update('selectionB'))),
       field('Selected scan list', select([0, 1, 2, 3].map(i => [i, `List ${i + 1}`]), settings.scanList, update('scanList')))));
 }
 function functionsView() {
@@ -559,7 +559,7 @@ function functionsView() {
   });
   const numeric = (key, min, max, label, fallback = 0) => input(settings[key] || fallback, update(key),
     { type: 'number', min, max, step: 1, 'aria-label': label });
-  const buttonFields = [['p1Action', 'P1', 'VFO / memory'], ['p2Action', 'P2', 'Radio status'],
+  const buttonFields = [['p1Action', 'P1', 'Frequency / Channel'], ['p2Action', 'P2', 'Radio status'],
     ['sk1Action', 'SK1', 'FM broadcast'], ['sk2Action', 'SK2', 'Switch A / B']];
   return h('div', {},
     S.client && S.client.protocolVersion < 3 ? h('div', { class: 'banner warning' }, icon('info', 19),
@@ -577,7 +577,7 @@ function functionsView() {
         buttonFields.map(([key, label, fallback]) => field(label,
           select(BUTTON_ACTIONS.map((action, index) => [index, index === 0 ? `Default · ${fallback}` : action]),
             settings[key], update(key), { 'aria-label': `${label} button action` }))),
-        h('p', { class: 'function-help' }, 'SK1 and SK2 are the side keys below PTT. Keypad lock remains available with OK + *; PTT is not locked.')),
+        h('p', { class: 'function-help' }, 'Assign Frequency / Channel to SK1 or SK2 to switch modes. These are the side keys below PTT. Keypad lock remains available with OK + *; PTT is not locked.')),
       h('section', { class: 'panel' }, h('div', { class: 'panel-heading' }, h('div', {},
         h('h2', {}, 'FM broadcast'), h('p', {}, 'A separate receive-only broadcast tuner.'))),
         h('div', { class: 'panel-body' }, h('div', { class: 'field-grid' },
@@ -743,11 +743,11 @@ function settingValue(model, key) {
   const value = model.settings[key];
   if (key === 'micGainDb') return `${value} dB`;
   if (key === 'screenSeconds' || key === 'keypadSeconds') return value ? `${value} seconds` : 'Always on';
-  if (key === 'activeVfo') return `Context ${value ? 'B' : 'A'}`;
+  if (key === 'activeVfo') return `Side ${value ? 'B' : 'A'}`;
   if (key === 'selectionA' || key === 'selectionB') {
-    if (!value) return `VFO ${key === 'selectionA' ? 'A' : 'B'}`;
+    if (!value) return `Frequency · VFO ${key === 'selectionA' ? 'A' : 'B'}`;
     const name = model.channels[value - 1]?.name;
-    return `Memory ${String(value).padStart(2, '0')}${name ? ` · ${name}` : ''}`;
+    return `Channel ${String(value).padStart(2, '0')}${name ? ` · ${name}` : ''}`;
   }
   if (key === 'scanList') return `List ${value + 1}`;
   if (key === 'txInhibit') return value ? 'Inhibited' : 'PTT enabled';
@@ -773,7 +773,7 @@ function diffItems(original, current) {
     }
   }
   const labels = { sourceId: 'Radio ID', micGainDb: 'Digital mic gain (dB)', screenSeconds: 'Screen timeout (seconds)', keypadSeconds: 'Keypad timeout (seconds)',
-    activeVfo: 'Active context', selectionA: 'Context A selection', selectionB: 'Context B selection', scanList: 'Selected scan list', txInhibit: 'TX inhibit',
+    activeVfo: 'Active side', selectionA: 'Side A starting mode', selectionB: 'Side B starting mode', scanList: 'Selected scan list', txInhibit: 'TX inhibit',
     totSeconds: 'Transmit timeout', p1Action: 'P1 button', p2Action: 'P2 button', sk1Action: 'SK1 button', sk2Action: 'SK2 button', broadcastKHz: 'FM broadcast frequency' };
   for (const key of Object.keys(current.settings)) if (signature(original.settings[key]) !== signature(current.settings[key]))
     entries.push({ title: labels[key] || key, details: [`${settingValue(original, key)} → ${settingValue(current, key)}`] });

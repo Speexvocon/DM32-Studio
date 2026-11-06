@@ -11,7 +11,7 @@ Use desktop Chrome or Edge with a programming cable and the custom firmware's lo
 1. Power the radio on normally, release PTT, connect the programming cable, and close other programs using that port.
 2. Click **Connect**, select the cable, then **Read radio**.
 3. Save a codeplug file before editing. Set your own frequencies and radio ID; demo data uses radio ID 1.
-4. Edit channels, VFO A/B, scan lists, radio settings and functions.
+4. Edit channels, Frequency A/B, scan lists, radio settings and functions. In Functions, assign **Frequency / Channel** to SK1 or SK2; Radio settings selects whether each side starts on its own frequency or a saved channel.
 5. Use **Review & write** to review the changes before explicitly applying them.
 
 Editing a field or opening a saved file does not write the radio. A read establishes the current revision and checksum before a write. Features unsupported by older firmware are refused before programming starts. Firmware installation and recovery are separate from this CPS.
@@ -26,7 +26,7 @@ The public website and its JavaScript source are readable by anyone. This reposi
 
 These unbundled HTML, CSS and JavaScript files are the complete application source. Serve this directory over HTTPS or localhost; for a local preview, run `python -m http.server 8765 --bind 127.0.0.1` and open `http://127.0.0.1:8765/`.
 
-GitHub Pages publishes the root of `main`. `.nojekyll` keeps the deployment static. Push reviewed CPS changes to `main` to update the site without reflashing firmware. `deployment.json` records the initial imported source revision and runtime asset checksums.
+GitHub Pages publishes the root of `main`. `.nojekyll` keeps the deployment static. Push reviewed CPS changes to `main` to update the site without reflashing firmware. `deployment.json` records the source revision and runtime asset checksums of the current export.
 
 ## License and provenance
 
