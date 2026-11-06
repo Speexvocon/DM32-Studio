@@ -1,17 +1,39 @@
 {
   "application": "DM32 Studio",
-  "source_revision": "e3faad3d16281c2071b89b51960c8cd77ffb38b6",
+  "source_revision": "2e0f18ad2d47a20b78d00c0702fbe2307dddfd09",
+  "source_status": "Validated source revision: host CI, target build and owner package checks passed",
   "logical_protocol_versions": [
     1,
     2,
-    3
+    3,
+    4
   ],
+  "codeplug_geometry": {
+    "legacy": {
+      "channels": 32,
+      "records": 35
+    },
+    "v4": {
+      "channels": 256,
+      "records": 387,
+      "zones": 16,
+      "scan_lists": 16,
+      "p25_talkgroups_per_list": 64
+    }
+  },
   "assets": {
     "index.html": "de1b90e7f5d289a86905c10e076c78f27f9f6f405714b83e5ff0b6c55ef766a7",
-    "app.js": "aef1c4d3326d08a5c1435f47a30cf2fb17c7fb4b6272a4c45583776e3b611986",
-    "model.js": "2ac78d39a94a8a2de860de153362044a44d3afcbed0e3e23e61f57ddcba9bd94",
-    "transport.js": "fc3a2a213f881f3a9c80c4e9fe14c58e75ec0eb27f9685de9a625159beda4da6",
-    "styles.css": "9529dd9c8af8fb89bbbabcaad6b2d682105e2055e43ca07e65c8faa793405454",
+    "app.js": "e01bb24c3d818ba3d7eced4f4c229258a51c28f2d955b688899f88d62ea4aa5b",
+    "model.js": "7967aa5733eb1f37feff315dc18d6bbb9187d7cec877fc7f708629d6a3ab08dd",
+    "transport.js": "c8f6de10cfa11754d140f1588857c281a1509d0882bcd6eaed23479570a9be0d",
+    "styles.css": "ad8b2a135bd3c54826e60db49ab17e3ea6de9aef0ee7c7fcfd933cd896aa7d3c",
     "vendor/undo.js": "034fd4a3439add324b0d1205fc0e840c9e2f2db31b64eebb5ec4874e9661b4ed"
+  },
+  "validation": {
+    "host_ci_run": 42162825624,
+    "target_ci_run": 42162825718,
+    "host_ci": "passed",
+    "target_build": "passed",
+    "owner_package": "passed"
   }
 }
