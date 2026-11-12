@@ -1,0 +1,32 @@
+{
+  "repository": "https://github.com/RadioFoundry/RadioFoundry",
+  "commit": "75c46ea46d5ebf6406f5b4ce0bbe2443b7649f91",
+  "license": "MIT",
+  "files": {
+    "flasher/bfloader.js": "ed5db6b19cc6eda884dc8ceb6d716ca97622e0642a6eeb4beaf35e34f3b632bc",
+    "flasher/stub.js": "16109aaed3c29256271e9ccd886129dce0e5ff3b92c083cb7bb98866e6e25080",
+    "flasher/bytes.js": "b13dcbcbc9ac4eed46c7ae9d7730a464fb034c5dd60dd35561c9f76949651b35",
+    "flasher/link.js": "2cbfbfb84705882fd6d14b7564e15f0271d076c918b84bf2f9282fb29a73c3db",
+    "flasher/protect.js": "1c1112e912e21584bc1a25919a6434efff89b347c37af1bccba73f362a704d37",
+    "flasher/lz4.js": "047bf2e6c149efcd69b89f82246cfc4258f78ac099801e6a5a1f006577c17200",
+    "diag.js": "87ea6cc2e5a0fff880f105dea92223bb94f78c73fc421bed4f0d727cb92400fd"
+  },
+  "runtimeAssets": "dm32-loader.json is generated only from the pinned tool constants and embedded monitor; no owner firmware or backup bytes.",
+  "generationSources": [
+    "stub/stubtool.py",
+    "tools/serial_loader.py"
+  ],
+  "stubSha256": "eae5b98615d67ba465061c84a5fb209a902333dc700671ce4ca69a05eb4aaee9",
+  "byteCounts": {
+    "flasher/bfloader.js": 10580,
+    "flasher/stub.js": 40396,
+    "flasher/bytes.js": 2312,
+    "flasher/link.js": 20633,
+    "flasher/protect.js": 2569,
+    "flasher/lz4.js": 2412,
+    "diag.js": 7356
+  },
+  "licenseSha256": "9988da23b503eebd9b627eca5bea80742257eec657c2a6916a705a301de42f67",
+  "licenseBytes": 1095,
+  "canonicalSource": "Exact bytes from pinned Git blobs; vendor-local attributes preserve LF on checkout."
+}

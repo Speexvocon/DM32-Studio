@@ -1,7 +1,7 @@
 {
   "application": "DM32 Studio",
-  "source_revision": "af136c6e15b524a4dff2cb049626cd6207a566a4",
-  "source_status": "Validated source revision: host CI, target build and owner package checks passed",
+  "source_revision": "e5bc09121fae690a0d8392f88e46c1c325d87900",
+  "source_status": "Web CPS and installer host CI, offline package/transport tests and browser checks passed; physical browser flash pending",
   "logical_protocol_versions": [
     1,
     2,
@@ -45,16 +45,31 @@
   },
   "export_adjustments": [
     "Normalize three legacy non-UTF-8 en dashes in model.js error messages",
-    "Version HTML asset URLs and all relative module imports with source revision af136c6"
+    "Version root HTML asset URLs and core relative module imports with e5bc091",
+    "Serve the complete byte-identical flasher source tree from firmware-assets/e5bc091"
   ],
   "assets": {
-    "index.html": "eef44a9a9377625c89372179b78abc86e08720d313e3fee5ab66e21f2d76e6ce",
-    "app.js": "9c2f376fa150c1bec6c586c25d53a7f4eeaf6f1df69864435935db428211976b",
+    "index.html": "4b9cffcabe8a694cd05f821886244cac8b03240c7dcb1a804956b1e23473366d",
+    "app.js": "e59786600703753b577409448baa1bb456c08db966b65f99995aeb3baee8e2e5",
     "model.js": "c5a9827989a50def81967e384c5998ad3c9106b5d4c7b79ce86e7238ef9a4d84",
-    "transport.js": "50abe240cc86199fa5cd71ac9c01fe03b0e856873dff9d2ee6a193658ba2f073",
+    "transport.js": "3f65cb5703e539373d7e9582fe80cb829a2cd397689261404e7e96c5e4a6da46",
     "call-tools.js": "7dda25a10722db40988b7b8921165e64f24f055efa1c866e93e8f7d479ec75cc",
     "styles.css": "90196abf11882f6b18db0a4b897f46229d604ec72b4518d7a3f6d2bb2cb4ebd2",
-    "vendor/undo.js": "034fd4a3439add324b0d1205fc0e840c9e2f2db31b64eebb5ec4874e9661b4ed"
+    "vendor/undo.js": "034fd4a3439add324b0d1205fc0e840c9e2f2db31b64eebb5ec4874e9661b4ed",
+    "firmware-assets/e5bc091/app.js": "552cf7a3aacc3fffa3271d532ca93f5c7460f783c59366abe8f68d2bcd320a8f",
+    "firmware-assets/e5bc091/device.js": "2728bd8581b25ac986113b27c7fd159d9fc9d219521275735ad501f873cde1f8",
+    "firmware-assets/e5bc091/package.js": "ebddbfef80f0c05a4e3316b8a53de0ce26e63157f325e3ea10b15dab61e5ac22",
+    "firmware-assets/e5bc091/styles.css": "7c90176d576ddfb83f68719ba593a1b6b61ebc812f54ca2226685c6c723cff62",
+    "firmware-assets/e5bc091/vendor/diag.js": "87ea6cc2e5a0fff880f105dea92223bb94f78c73fc421bed4f0d727cb92400fd",
+    "firmware-assets/e5bc091/vendor/dm32-loader.json": "bc81d7abca05e462b9c56ae9db6911c1d02547118a6109618fcbb498bbbe12c1",
+    "firmware-assets/e5bc091/vendor/UPSTREAM.json": "784288f0cf353e81cddee26b609c44ad67ce46f9bdaa7fc58946e733391bf35d",
+    "firmware-assets/e5bc091/vendor/flasher/bfloader.js": "ed5db6b19cc6eda884dc8ceb6d716ca97622e0642a6eeb4beaf35e34f3b632bc",
+    "firmware-assets/e5bc091/vendor/flasher/bytes.js": "b13dcbcbc9ac4eed46c7ae9d7730a464fb034c5dd60dd35561c9f76949651b35",
+    "firmware-assets/e5bc091/vendor/flasher/link.js": "2cbfbfb84705882fd6d14b7564e15f0271d076c918b84bf2f9282fb29a73c3db",
+    "firmware-assets/e5bc091/vendor/flasher/lz4.js": "047bf2e6c149efcd69b89f82246cfc4258f78ac099801e6a5a1f006577c17200",
+    "firmware-assets/e5bc091/vendor/flasher/protect.js": "1c1112e912e21584bc1a25919a6434efff89b347c37af1bccba73f362a704d37",
+    "firmware-assets/e5bc091/vendor/flasher/stub.js": "16109aaed3c29256271e9ccd886129dce0e5ff3b92c083cb7bb98866e6e25080",
+    "firmware.html": "a1fed515399ad330f478ede06cf6a5f70c29b2a1fd451c215f47b6df420b3bc4"
   },
   "validation": {
     "host_ci_run": 43132542099,
@@ -62,8 +77,24 @@
     "host_ci": "passed",
     "target_build": "passed",
     "owner_package": "passed",
-    "standalone_browser": "passed: 20 base and 7 contacts/messaging scenarios",
+    "standalone_browser": "11 installer scenarios passed against the exact standalone export",
     "simulated_serial_only": true,
-    "staged_asset_hashes": "passed"
+    "staged_asset_hashes": "passed",
+    "flasher_ui": "11 simulated-module browser scenarios passed",
+    "flasher_transport": "9 pinned simulated-radio scenarios passed",
+    "flasher_package": "12 package tests and six-stock Python parity passed",
+    "web_host_ci_run": 43143550618,
+    "web_host_ci": "passed",
+    "node_suite": "107 passed; zero failures or skipped tests",
+    "cps_browser": "20 CPS regression scenarios passed against the source server"
+  },
+  "firmware_candidate_revision": "af136c6e15b524a4dff2cb049626cd6207a566a4",
+  "firmware_installer": {
+    "path": "firmware.html",
+    "runtime": "firmware-assets/e5bc091",
+    "status": "experimental",
+    "physical_browser_flash_qualified": false,
+    "hardware_accessed_during_development": false,
+    "uploads_private_files": false
   }
 }

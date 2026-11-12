@@ -24,3 +24,14 @@ No RadioFoundry service, branding identity or website deployment is implied.
 
 The pinned upstream checkout remains untouched. The editor runs entirely from
 this folder and requires no upstream installation or remote assets at runtime.
+
+## Browser firmware transport
+
+`firmware-assets/e5bc091/vendor/` retains the pinned RadioFoundry MIT browser serial transport,
+factory updater, RAM-reader transport, byte/CRC helpers, protection checks and
+LZ4 reader, with their license and per-file source hashes in `UPSTREAM.json`.
+The universal RAM monitor is embedded as checked loader metadata; it contains
+no owner's native codec or radio backup. `firmware-assets/e5bc091/device.js` restricts the flow
+to DM32 reads and the BFUV32-V2 application updater. The offline package engine
+ports this project's beta preparation and preservation rules. There is no
+RadioFoundry backend, telemetry or stock firmware download in this workflow.

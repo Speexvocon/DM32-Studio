@@ -3,10 +3,10 @@ import {
   exportFile, importFile, crc32, setChannelMode, POWER_LEVELS, BUTTON_ACTIONS,
   modelVersion, upgradeModel, createScanList, clearChannels, moveChannel, bulkEditChannels, exportChannelsCsv, importChannelsCsv,
   CONTACT_COUNT, CONTACT_NAME_BYTES, exportContactsCsv, importContactsCsv,
-} from './model.js?v=af136c6';
-import { CpsClient } from './transport.js?v=af136c6';
-import { History } from './vendor/undo.js?v=af136c6';
-import { findContact, channelAddress, MESSAGE_DRAFT_LIMIT, validateMessageDraft, exportMessageDraft, importMessageDraft, MESSAGE_FORMATS, MESSAGE_STATES, messageReplyDraft } from './call-tools.js?v=af136c6';
+} from './model.js?v=e5bc091';
+import { CpsClient } from './transport.js?v=e5bc091';
+import { History } from './vendor/undo.js?v=e5bc091';
+import { findContact, channelAddress, MESSAGE_DRAFT_LIMIT, validateMessageDraft, exportMessageDraft, importMessageDraft, MESSAGE_FORMATS, MESSAGE_STATES, messageReplyDraft } from './call-tools.js?v=e5bc091';
 
 // The editor follows RadioFoundry's useful table / details / problems workflow.
 // This logical CPS transport is specific to the custom unified DM32 firmware.
@@ -184,6 +184,7 @@ function render() {
         h('div', {}, h('div', { class: 'brand-title' }, 'DM32 ', h('span', {}, 'Studio')),
           h('div', { class: 'brand-sub' }, 'P25 + DMR + FM · Custom firmware programming'))),
       h('div', { class: 'top-actions' },
+        button('Firmware', openFirmwareTools, { kind: 'quiet' }),
         button('New', newFile, { kind: 'quiet' }),
         button('Open', () => { if (!S.busy) fileInput.click(); }, { glyph: 'folder' }),
         button('Save file', saveFile, { glyph: 'save', disabled: Boolean(issues.length) }))),
@@ -1037,6 +1038,13 @@ function confirmDialog(title, text, confirm = 'Continue', danger = false, body =
 async function canReplace() {
   if (S.busy) return false;
   return !dirty() || await confirmDialog('Replace unsaved edits?', 'The current working copy has unsaved edits. Save a file first if you want to keep them.', 'Replace working copy');
+}
+async function openFirmwareTools() {
+  if (!await canReplace()) return;
+  if (S.messageDraft.text && !await confirmDialog('Leave message draft?',
+    'Save your message draft first if you want to keep it. Opening firmware tools leaves the editor.', 'Open firmware tools')) return;
+  if (S.client) await disconnectRadio();
+  if (!S.client) window.location.href = new URL('./firmware.html', window.location.href).href;
 }
 async function newFile() {
   if (!await canReplace()) return;

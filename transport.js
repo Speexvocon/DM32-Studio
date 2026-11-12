@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { crc32, decodePayload, recordCount, RECORD_BYTES } from './model.js?v=af136c6';
-import { validateMessageDraft } from './call-tools.js?v=af136c6';
+import { crc32, decodePayload, recordCount, RECORD_BYTES } from './model.js?v=e5bc091';
+import { validateMessageDraft } from './call-tools.js?v=e5bc091';
 
 const MAX_FRAME = 120;
 const encoder = new TextEncoder();

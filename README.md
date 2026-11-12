@@ -96,17 +96,39 @@ New drafts use the complete V5 JSON codeplug format. V5 contains 483 records; V4
 
 If a transfer loses its commit acknowledgement, its result is uncertain. Disconnect, reconnect and read the radio before another write. The client never retries a commit automatically.
 
+## Browser firmware installer (experimental)
+
+Open **[Firmware](https://speexvocon.github.io/DM32-Studio/firmware.html)**, or use
+Studio's Firmware button. Use desktop Chrome or Edge over HTTPS or localhost.
+The full flow can make a sealed two-read original backup, prepare the native codec
+locally from that backup, check protected regions, install through BFUV32-V2 and
+perform a fresh independent readback. It also accepts existing sealed backups and
+private Python-prepared packages with their matching release. Select a release
+folder downloaded from the trusted beta repository; application firmware and
+native codec bytes are not hosted here.
+
+Backups and private packages stay on your computer. Save them before installing.
+File selection and model identification cannot erase the radio; Review & install
+requires separate confirmation after preparation and preservation checks. Transfer
+completion is shown separately from independent verification. Keep the CLI
+installer/recovery tools available. Physical browser flashing has not yet been
+qualified; the browser installer is experimental.
+
+See [the complete browser instructions](firmware-assets/e5bc091/README.md). The
+versioned runtime directory keeps the entire module graph immutable, including
+RadioFoundry's byte-identical MIT transport modules and checked RAM reader.
+
 ## Privacy and hosting
 
-The host serves the application files. Radio communication goes directly between your browser and the programming cable using Web Serial. Codeplugs stay in browser memory; saving downloads a local JSON file. There is no application backend, account, analytics, cloud codeplug storage, or third-party runtime dependency.
+The host serves the application files. Radio communication goes directly between your browser and the programming cable using Web Serial. Codeplugs stay in browser memory; saving downloads a local JSON file. There is no application backend, account, analytics, cloud codeplug storage, or remote runtime dependency.
 
-The public website and its JavaScript source are readable by anyone. This repository contains only the CPS, documentation and license notices. Firmware images, native codec files, personal codeplugs and radio backups are distributed or stored separately.
+The public website and its JavaScript source are readable by anyone. This repository contains only the CPS, documentation and license notices. Application firmware images, native codec files, personal codeplugs and radio backups are distributed or stored separately.
 
 ## Development
 
 These unbundled HTML, CSS and JavaScript files are the complete application source. Serve this directory over HTTPS or localhost; for a local preview, run `python -m http.server 8765 --bind 127.0.0.1` and open `http://127.0.0.1:8765/`.
 
-GitHub Pages publishes the root of `main`. `.nojekyll` keeps the deployment static. Push reviewed CPS changes to `main` to update the site without reflashing firmware. `deployment.json` records the source revision, export adjustments and runtime asset checksums. Versioned asset URLs prevent a cached older module from mixing with this release. The matching firmware source passed host and target CI; this standalone export is also checked in a browser with simulated serial access.
+GitHub Pages publishes the root of `main`. `.nojekyll` keeps the deployment static. Push reviewed CPS changes to `main` to update the site without reflashing firmware. `deployment.json` records the source revision, export adjustments and runtime asset checksums. Versioned asset URLs prevent a cached older module from mixing with this release. The underlying firmware candidate passed host and target CI; this standalone export is also checked in a browser with simulated serial access.
 
 ## License and provenance
 
