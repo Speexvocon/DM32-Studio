@@ -107,6 +107,12 @@ private Python-prepared packages with their matching release. Select a release
 folder downloaded from the trusted beta repository; application firmware and
 native codec bytes are not hosted here.
 
+RF-B / `DM32.NRFB.01.050` radios are currently incompatible; support is planned.
+Use [backup-only mode](https://speexvocon.github.io/DM32-Studio/firmware.html?backup=1)
+to read the complete 1 MiB program and 16 MiB data flash twice, then download a
+full dump ZIP to send privately to the maintainer. No recognized codec or
+calibration layout is needed to save this diagnostic dump.
+
 Backups and private packages stay on your computer. Save them before installing.
 File selection and model identification cannot erase the radio; Review & install
 requires separate confirmation after preparation and preservation checks. Transfer
@@ -114,7 +120,7 @@ completion is shown separately from independent verification. Keep the CLI
 installer/recovery tools available. Physical browser flashing has not yet been
 qualified; the browser installer is experimental.
 
-See [the complete browser instructions](firmware-assets/e5bc091/README.md). The
+See [the complete browser instructions](firmware-assets/d5e2134/README.md). The
 versioned runtime directory keeps the entire module graph immutable, including
 RadioFoundry's byte-identical MIT transport modules and checked RAM reader.
 
