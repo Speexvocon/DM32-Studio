@@ -1,13 +1,15 @@
 {
   "application": "DM32 Studio",
-  "source_revision": "2e0f18ad2d47a20b78d00c0702fbe2307dddfd09",
+  "source_revision": "af136c6e15b524a4dff2cb049626cd6207a566a4",
   "source_status": "Validated source revision: host CI, target build and owner package checks passed",
   "logical_protocol_versions": [
     1,
     2,
     3,
-    4
+    4,
+    5
   ],
+  "messaging_service_version": 1,
   "codeplug_geometry": {
     "legacy": {
       "channels": 32,
@@ -19,21 +21,49 @@
       "zones": 16,
       "scan_lists": 16,
       "p25_talkgroups_per_list": 64
+    },
+    "v5": {
+      "channels": 256,
+      "records": 483,
+      "zones": 16,
+      "scan_lists": 16,
+      "p25_talkgroups_per_list": 64,
+      "contacts": 96
     }
   },
+  "messaging": {
+    "mailbox_entries": 16,
+    "text_characters": 80,
+    "mailbox_persistent": false,
+    "p25": "individual unconfirmed TMS",
+    "dmr": [
+      "Motorola TMS",
+      "ETSI short text",
+      "ETSI IP text"
+    ],
+    "requires_matching_firmware": true
+  },
+  "export_adjustments": [
+    "Normalize three legacy non-UTF-8 en dashes in model.js error messages",
+    "Version HTML asset URLs and all relative module imports with source revision af136c6"
+  ],
   "assets": {
-    "index.html": "de1b90e7f5d289a86905c10e076c78f27f9f6f405714b83e5ff0b6c55ef766a7",
-    "app.js": "e01bb24c3d818ba3d7eced4f4c229258a51c28f2d955b688899f88d62ea4aa5b",
-    "model.js": "7967aa5733eb1f37feff315dc18d6bbb9187d7cec877fc7f708629d6a3ab08dd",
-    "transport.js": "c8f6de10cfa11754d140f1588857c281a1509d0882bcd6eaed23479570a9be0d",
-    "styles.css": "ad8b2a135bd3c54826e60db49ab17e3ea6de9aef0ee7c7fcfd933cd896aa7d3c",
+    "index.html": "eef44a9a9377625c89372179b78abc86e08720d313e3fee5ab66e21f2d76e6ce",
+    "app.js": "9c2f376fa150c1bec6c586c25d53a7f4eeaf6f1df69864435935db428211976b",
+    "model.js": "c5a9827989a50def81967e384c5998ad3c9106b5d4c7b79ce86e7238ef9a4d84",
+    "transport.js": "50abe240cc86199fa5cd71ac9c01fe03b0e856873dff9d2ee6a193658ba2f073",
+    "call-tools.js": "7dda25a10722db40988b7b8921165e64f24f055efa1c866e93e8f7d479ec75cc",
+    "styles.css": "90196abf11882f6b18db0a4b897f46229d604ec72b4518d7a3f6d2bb2cb4ebd2",
     "vendor/undo.js": "034fd4a3439add324b0d1205fc0e840c9e2f2db31b64eebb5ec4874e9661b4ed"
   },
   "validation": {
-    "host_ci_run": 42162825624,
-    "target_ci_run": 42162825718,
+    "host_ci_run": 43132542099,
+    "target_ci_run": 43132542106,
     "host_ci": "passed",
     "target_build": "passed",
-    "owner_package": "passed"
+    "owner_package": "passed",
+    "standalone_browser": "passed: 20 base and 7 contacts/messaging scenarios",
+    "simulated_serial_only": true,
+    "staged_asset_hashes": "passed"
   }
 }

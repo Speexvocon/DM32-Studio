@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Logical CPS V1–V4. Legacy imports retain their exact bytes until explicitly upgraded.
+// Logical CPS V1 through V5. Legacy imports retain exact bytes until explicitly upgraded.
 
 export const RECORD_BYTES = 32;
-export const RECORD_COUNT = 387;
+export const RECORD_COUNT = 483;
+export const V4_RECORD_COUNT = 387;
+export const CONTACT_COUNT = 96;
+export const CONTACT_NAME_BYTES = 24;
 export const MEMORY_COUNT = 256;
 export const LEGACY_RECORD_COUNT = 35;
 export const ZONE_COUNT = 16;
 export const SCAN_COUNT = 16;
-export const modelVersion = model => model?.channels?.length === 256 ? 4 : 3;
-export const recordCount = version => version === 4 ? RECORD_COUNT : LEGACY_RECORD_COUNT;
+export const modelVersion = model => model?.channels?.length === 256 ? Object.hasOwn(model, 'contacts') ? 5 : 4 : 3;
+export const recordCount = version => version >= 5 ? RECORD_COUNT : version === 4 ? V4_RECORD_COUNT : LEGACY_RECORD_COUNT;
 export const FILTERS = Object.freeze(["NAC", "PROM", "NAC+TG"]);
 export const POWER_LEVELS = Object.freeze(["L−", "L", "L+", "L++", "M", "M+", "M++", "H−", "H"]);
-export const BUTTON_ACTIONS = Object.freeze(["Default", "None", "Frequency / Channel", "Switch A / B", "Scan", "Cycle TX power", "FM broadcast", "Radio status", "Keypad lock"]);
+export const BUTTON_ACTIONS = Object.freeze(["Default", "None", "Frequency / Channel", "Switch A / B", "Scan", "Cycle TX power", "FM broadcast", "Radio status", "Keypad lock", "Last heard"]);
 
 const MODES = ["P25", "NFM", "FM", "DMR"];
 const TONE_TYPES = ["none", "ctcss", "dcs", "dcs-inv"];
@@ -62,14 +65,14 @@ function checkTone(tone, path, errors) {
     }
 }
 
-function checkChannel(channel, path, errors, expanded = false) {
+function checkChannel(channel, path, errors, expanded = false, version = 3) {
     if (channel === null) return;
     if (!object(channel)) {
         errors.push({ path, message: "Expected a channel or null for an empty slot" });
         return;
     }
     const dmr = channel.mode === "DMR";
-    ownKeys(channel, dmr ? DMR_KEYS : CHANNEL_KEYS, path, errors);
+    ownKeys(channel, dmr ? DMR_KEYS : version>=5 && channel.mode === "P25" ? [...CHANNEL_KEYS, "privateCall", "destinationId"] : CHANNEL_KEYS, path, errors);
     if (typeof channel.name !== "string" || channel.name.length > 12 || /[^\x20-\x7e]/.test(channel.name)) {
         errors.push({ path: `${path}.name`, message: "Use at most 12 printable ASCII characters" });
     }
@@ -101,6 +104,10 @@ function checkChannel(channel, path, errors, expanded = false) {
     checkTone(channel.txTone, `${path}.txTone`, errors);
     checkTone(channel.rxTone, `${path}.rxTone`, errors);
     if (channel.mode === "P25") {
+        if(version>=5) {
+            if(typeof channel.privateCall !== 'boolean') errors.push({path:`${path}.privateCall`,message:'Choose group or individual calling'});
+            if(!integer(channel.destinationId,1,0xffffff) || !channel.privateCall && channel.destinationId!==1) errors.push({path:`${path}.destinationId`,message:'Individual destination must be 1–16777215; group calls use 1 in this unused field'});
+        }
         for (const field of ["txTone", "rxTone"]) {
             if (object(channel[field]) && (channel[field].type !== "none" || channel[field].value !== 0)) {
                 errors.push({ path: `${path}.${field}`, message: "P25 channels cannot use analog tones" });
@@ -113,14 +120,14 @@ function checkChannel(channel, path, errors, expanded = false) {
 export function validateModel(model) {
     const errors = [];
     if (!object(model)) return [{ path: "", message: "Expected a configuration object" }];
-    const expanded = modelVersion(model) === 4, memories = expanded ? 256 : 32;
-    ownKeys(model, expanded ? ["channels", "vfos", "settings", "zones", "scanLists"] : ["channels", "vfos", "settings"], "", errors);
+    const version = modelVersion(model), expanded = version >= 4, memories = expanded ? 256 : 32;
+    ownKeys(model, expanded ? ["channels", "vfos", "settings", "zones", "scanLists", ...(version>=5 ? ["contacts"] : [])] : ["channels", "vfos", "settings"], "", errors);
     for (const [key, count] of [["channels", memories], ["vfos", 2]]) {
         if (!Array.isArray(model[key]) || model[key].length !== count) {
             errors.push({ path: key, message: `Expected exactly ${count} slots` });
             continue;
         }
-        for (let index = 0; index < count; index++) checkChannel(model[key][index], `${key}[${index}]`, errors, expanded);
+        for (let index = 0; index < count; index++) checkChannel(model[key][index], `${key}[${index}]`, errors, expanded, version);
         if (Object.keys(model[key]).some((item) => !/^(0|[1-9]\d*)$/.test(item) || Number(item) >= count)) {
             errors.push({ path: key, message: "Unexpected array fields" });
         }
@@ -144,7 +151,7 @@ export function validateModel(model) {
         errors.push({ path: "settings.totSeconds", message: "Use 15–600 whole seconds, or 0 for the 30-second default" });
     }
     for (const key of ["p1Action", "p2Action", "sk1Action", "sk2Action"]) {
-        if (!integer(settings[key], 0, 8)) errors.push({ path: `settings.${key}`, message: "Choose a supported button action" });
+        if (!integer(settings[key], 0, version>=5 ? 9 : 8)) errors.push({ path: `settings.${key}`, message: "Choose a supported button action" });
     }
     if (settings.broadcastKHz !== 0 && (!integer(settings.broadcastKHz, 65000, 108000) || settings.broadcastKHz % 50 !== 0)) {
         errors.push({ path: "settings.broadcastKHz", message: "Use 65–108 MHz in 0.05-MHz steps, or 0 for the 87.5-MHz default" });
@@ -156,7 +163,28 @@ export function validateModel(model) {
         }
     }
     if (expanded) checkCollections(model, errors);
+    if (version>=5) checkContacts(model.contacts, errors);
     return errors;
+}
+
+function checkContacts(contacts, errors) {
+    const fail=(path,message)=>errors.push({path,message});
+    if(!Array.isArray(contacts) || contacts.length!==CONTACT_COUNT || Object.keys(contacts).length!==CONTACT_COUNT
+        || Object.keys(contacts).some((key,i)=>key!==String(i))) {fail('contacts',`Expected exactly ${CONTACT_COUNT} contact slots`);return;}
+    const identities=[];
+    contacts.forEach((contact,index)=>{
+        if(contact===null)return;
+        const path=`contacts[${index}]`;
+        if(!object(contact)){fail(path,'Expected a contact or null');return;}
+        ownKeys(contact,['protocol','type','id','name'],path,errors);
+        const mask=contact.protocol==='P25'?2:contact.protocol==='DMR'?4:contact.protocol==='Both'?6:0;
+        if(!mask)fail(`${path}.protocol`,'Choose P25, DMR or Both');
+        if(!['unit','group'].includes(contact.type))fail(`${path}.type`,'Choose a unit or group');
+        if(!integer(contact.id,1,contact.type==='group' && mask&2 ? 65535 : 0xffffff))fail(`${path}.id`,'Use a valid 24-bit ID; P25 groups are 1–65535');
+        if(typeof contact.name!=='string' || !contact.name.length || contact.name.length>CONTACT_NAME_BYTES || /[^\x20-\x7e]/.test(contact.name))fail(`${path}.name`,`Use 1–${CONTACT_NAME_BYTES} printable ASCII characters`);
+        if(identities.some(other=>other.id===contact.id && other.type===contact.type && (other.mask&mask)))fail(path,'Duplicate typed ID with overlapping protocol scope');
+        identities.push({id:contact.id,type:contact.type,mask});
+    });
 }
 
 function requireValid(model) {
@@ -193,7 +221,7 @@ function checkCollections(model, errors) {
             if (item.type === 'channel') {
                 if (item.baseChannel !== 0 || item.talkgroups?.length) fail(path, 'Channel scan cannot have a base channel or talkgroup entries');
             } else if (item.type === 'p25-tg') {
-                if (!integer(item.baseChannel, 1, 256) || model.channels[item.baseChannel - 1]?.mode !== 'P25') fail(`${path}.baseChannel`, 'Choose an occupied P25 receive channel');
+                if (!integer(item.baseChannel, 1, 256) || (model.channels[item.baseChannel - 1]?.mode !== 'P25' || model.channels[item.baseChannel - 1]?.privateCall)) fail(`${path}.baseChannel`, 'Choose an occupied P25 group receive channel');
                 if (item.channels?.length) fail(`${path}.channels`, 'Talkgroup scan uses its base channel, without channel membership');
             }
         });
@@ -211,9 +239,9 @@ export function createScanList(name = 'Scan list', type = 'channel', baseChannel
 }
 
 function writeName(output, offset, name) { for (let i = 0; i < name.length; i++) output[offset + i] = name.charCodeAt(i); }
-function readName(record, index) {
+function readName(record, index, length = 12) {
     let text = '', ended = false;
-    for (const byte of record.subarray(0, 12)) {
+    for (const byte of record.subarray(0, length)) {
         if (!byte) ended = true;
         else if (ended || byte < 32 || byte > 126) badRecord(index, 'invalid name padding');
         else text += String.fromCharCode(byte);
@@ -257,8 +285,13 @@ function writeChannel(output, index, channel) {
         data.setUint16(10, channel.talkgroup, true);
         output[offset + 12] = 1 | (channel.mode !== "P25" ? 2 : 0)
             | FILTERS.indexOf(channel.filter) << 2 | (channel.rxOnly ? 16 : 0) | (channel.mode === "FM" ? 32 : 0);
-        data.setUint16(26, toneWord(channel.txTone), true);
-        data.setUint16(28, toneWord(channel.rxTone), true);
+        if(channel.mode === 'P25' && channel.privateCall) {
+            output[offset+26]=channel.destinationId&255;output[offset+27]=channel.destinationId>>>8&255;
+            output[offset+28]=channel.destinationId>>>16;output[offset+29]=1;
+        } else {
+            data.setUint16(26, toneWord(channel.txTone), true);
+            data.setUint16(28, toneWord(channel.rxTone), true);
+        }
         output[offset + 30] = channel.squelch;
     }
     output[offset + 13] = channel.scanLists.reduce((mask, list) => mask | 1 << list, 0);
@@ -266,10 +299,10 @@ function writeChannel(output, index, channel) {
     output[offset + 31] = channel.powerLevel;
 }
 
-/** Encode the complete canonical legacy/V4 database; no metadata or flash addresses. */
+/** Encode the complete canonical V1-V5 database; no metadata or flash addresses. */
 export function encodePayload(model) {
     requireValid(model);
-    const version = modelVersion(model), memories = version === 4 ? 256 : 32;
+    const version = modelVersion(model), memories = version >= 4 ? 256 : 32;
     const output = new Uint8Array(recordCount(version) * RECORD_BYTES);
     model.channels.forEach((channel, index) => writeChannel(output, index, channel));
     model.vfos.forEach((channel, index) => writeChannel(output, memories + index, channel));
@@ -285,7 +318,7 @@ export function encodePayload(model) {
     data.setUint16(14, settings.totSeconds, true);
     for (const [index, key] of ["p1Action", "p2Action", "sk1Action", "sk2Action"].entries()) output[offset + 16 + index] = settings[key];
     data.setUint32(20, settings.broadcastKHz, true);
-    if (version === 4) {
+    if (version >= 4) {
         output[offset + 24] = settings.selectionA >>> 8;
         output[offset + 25] = settings.selectionB >>> 8;
         output[offset + 26] = settings.zoneA;
@@ -307,6 +340,13 @@ export function encodePayload(model) {
             list.talkgroups.forEach((tg, n) => data.setUint16(64 + n * 2, tg, true));
         });
     }
+    if(version>=5)model.contacts.forEach((contact,i)=>{
+        if(!contact)return;
+        const offset=(387+i)*32;
+        output[offset]=1|{P25:2,DMR:4,Both:6}[contact.protocol]|(contact.type==='group'?8:0);
+        output[offset+1]=contact.id&255;output[offset+2]=contact.id>>>8&255;output[offset+3]=contact.id>>>16;
+        writeName(output,offset+4,contact.name);
+    });
     return output;
 }
 
@@ -328,7 +368,7 @@ function readChannel(input, index, version) {
         return null;
     }
     const dmr = Boolean(flags & 64);
-    if (flags & 0x80 || (version === 1 && dmr) || (flags >> 2 & 3) > 2 || record[13] > (version === 4 ? 0 : 15) || (version < 3 && record[31] !== 0)) badRecord(index, "unknown flags or reserved bytes");
+    if (flags & 0x80 || (version === 1 && dmr) || (flags >> 2 & 3) > 2 || record[13] > (version >= 4 ? 0 : 15) || (version < 3 && record[31] !== 0)) badRecord(index, "unknown flags or reserved bytes");
     if (!(flags & 2) && flags & 32) badRecord(index, "wide FM flag on a P25 channel");
     const data = new DataView(record.buffer, record.byteOffset, record.byteLength);
     let name = "", ended = false;
@@ -347,24 +387,27 @@ function readChannel(input, index, version) {
             colorCode: record[11] & 15, timeslot: record[11] & 16 ? 2 : 1,
             privateCall: Boolean(record[11] & 32), repeater: Boolean(record[11] & 64), filter: FILTERS[flags >> 2 & 3] };
     }
+    const p25=!(flags&2), individual=p25 && version>=5 && record[29]===1;
+    if(p25 && !individual && record.subarray(26,30).some(x=>x))badRecord(index,'invalid P25 call addressing');
     return {
+        ...(p25 && version>=5 ? {privateCall:individual,destinationId:individual ? record[26]|record[27]<<8|record[28]<<16 : 1} : {}),
         name, rxHz: data.getUint32(0, true), txHz: data.getUint32(4, true),
         mode: !(flags & 2) ? "P25" : flags & 32 ? "FM" : "NFM",
         nac: data.getUint16(8, true), talkgroup: data.getUint16(10, true), filter: FILTERS[flags >> 2 & 3],
         rxOnly: Boolean(flags & 16), scanLists: [0, 1, 2, 3].filter((list) => record[13] & 1 << list), squelch: record[30],
         powerLevel: record[31],
-        txTone: readTone(data.getUint16(26, true), index), rxTone: readTone(data.getUint16(28, true), index),
+        txTone: individual ? {type:"none",value:0} : readTone(data.getUint16(26, true), index), rxTone: individual ? {type:"none",value:0} : readTone(data.getUint16(28, true), index),
     };
 }
 
 /** Decode and validate every byte, including padding, unused records and selected references. */
-export function decodePayload(value, version = value?.length === RECORD_COUNT * 32 ? 4 : 3) {
-    if (![1, 2, 3, 4].includes(version)) throw new Error("Unsupported CPS payload version");
+export function decodePayload(value, version = value?.length === RECORD_COUNT * 32 ? 5 : value?.length === V4_RECORD_COUNT * 32 ? 4 : 3) {
+    if (![1, 2, 3, 4, 5].includes(version)) throw new Error("Unsupported CPS payload version");
     const input = bytes(value);
-    const expected = recordCount(version) * RECORD_BYTES, memories = version === 4 ? 256 : 32;
+    const expected = recordCount(version) * RECORD_BYTES, memories = version >= 4 ? 256 : 32;
     if (input.length !== expected) throw new Error(`Expected ${expected} CPS bytes, got ${input.length}`);
     const global = input.subarray((memories + 2) * RECORD_BYTES, (memories + 3) * RECORD_BYTES);
-    if (global[13] > 1 || global.subarray(version < 3 ? 14 : version === 4 ? 28 : 24).some((octet) => octet !== 0)) badRecord(memories + 2, "invalid inhibit or reserved bytes");
+    if (global[13] > 1 || global.subarray(version < 3 ? 14 : version >= 4 ? 28 : 24).some((octet) => octet !== 0)) badRecord(memories + 2, "invalid inhibit or reserved bytes");
     const data = new DataView(global.buffer, global.byteOffset, global.byteLength);
     const model = {
         channels: Array.from({ length: memories }, (_, index) => readChannel(input, index, version)),
@@ -377,7 +420,7 @@ export function decodePayload(value, version = value?.length === RECORD_COUNT * 
             sk1Action: global[18], sk2Action: global[19], broadcastKHz: data.getUint32(20, true),
         },
     };
-    if (version === 4) {
+    if (version >= 4) {
         model.settings.selectionA |= global[24] << 8;
         model.settings.selectionB |= global[25] << 8;
         model.settings.zoneA = global[26]; model.settings.zoneB = global[27];
@@ -397,30 +440,37 @@ export function decodePayload(value, version = value?.length === RECORD_COUNT * 
                 channels: readMembers(record.subarray(32, 64)), talkgroups: Array.from({length: count}, (_, n) => data.getUint16(64 + n * 2, true))};
         });
     }
+    if(version>=5)model.contacts=Array.from({length:CONTACT_COUNT},(_,i)=>{
+        const index=387+i,record=input.subarray(index*32,(index+1)*32),flags=record[0];
+        if(!flags){if(record.some(x=>x))badRecord(index,'empty contact contains data');return null;}
+        if(!(flags&1) || flags&~15 || !(flags&6) || record.subarray(28).some(x=>x))badRecord(index,'invalid contact flags or padding');
+        return {protocol:{2:'P25',4:'DMR',6:'Both'}[flags&6],type:flags&8?'group':'unit',id:record[1]|record[2]<<8|record[3]<<16,name:readName(record.subarray(4,28),index,24)};
+    });
     requireValid(model);
     return model;
 }
 
 /** An offline draft only. Creating it never changes the radio's transmit policy. */
-export function createDefaultModel(version = 4) {
+export function createDefaultModel(version = 5) {
     const channel = (name) => ({
         name, rxHz: 145700000, txHz: 145700000, mode: "P25", nac: 0x293, talkgroup: 1, filter: "NAC",
         rxOnly: false, scanLists: [], squelch: 5, powerLevel: 0, txTone: { type: "none", value: 0 }, rxTone: { type: "none", value: 0 },
     });
     const model = {
-        channels: Array(version === 4 ? 256 : 32).fill(null), vfos: [channel("VFO A"), channel("VFO B")],
+        channels: Array(version >= 4 ? 256 : 32).fill(null), vfos: [channel("VFO A"), channel("VFO B")],
         settings: { sourceId: 1, micGainDb: 11, screenSeconds: 60, keypadSeconds: 15, activeVfo: 0, selectionA: 0, selectionB: 0, scanList: 0, txInhibit: false,
             totSeconds: 0, p1Action: 0, p2Action: 0, sk1Action: 0, sk2Action: 0, broadcastKHz: 0 },
     };
-    if (version === 4) {
+    if (version >= 4) {
         Object.assign(model.settings, {zoneA: 0, zoneB: 0});
         model.zones = Array(16).fill(null); model.scanLists = Array(16).fill(null);
     }
+    if(version>=5){model.contacts=Array(CONTACT_COUNT).fill(null);for(const channel of model.vfos)Object.assign(channel,{privateCall:false,destinationId:1});}
     return model;
 }
 
 /** A deliberate mode conversion retains common channel fields only. */
-export function setChannelMode(channel, mode) {
+export function setChannelMode(channel, mode, version = 3) {
     if (!MODES.includes(mode)) throw new Error("Unsupported channel mode");
     const previous = channel.mode;
     if (previous === mode) return;
@@ -433,7 +483,9 @@ export function setChannelMode(channel, mode) {
         Object.assign(channel, { nac: 0x293, talkgroup: 1, filter: "NAC", squelch: 5,
             txTone: { type: "none", value: 0 }, rxTone: { type: "none", value: 0 } });
     }
+    if(mode!=="P25" && mode!=="DMR"){delete channel.privateCall;delete channel.destinationId;}
     if (mode === "P25") {
+        if(version>=5)Object.assign(channel,{privateCall:false,destinationId:1});
         channel.txTone = { type: "none", value: 0 };
         channel.rxTone = { type: "none", value: 0 };
     }
@@ -468,7 +520,7 @@ export function importFile(text) {
     try { file = JSON.parse(text); } catch { throw new Error("Invalid CPS JSON file"); }
     const keys = ["format", "version", "payload", "crc32", "origin"];
     if (!object(file) || Object.keys(file).length !== keys.length || keys.some((key) => !Object.hasOwn(file, key))) throw new Error("Unrecognized CPS file fields");
-    if (file.format !== "DM32P25-CPS" || ![1, 2, 3, 4].includes(file.version)) throw new Error("Unsupported CPS file format or version");
+    if (file.format !== "DM32P25-CPS" || ![1, 2, 3, 4, 5].includes(file.version)) throw new Error("Unsupported CPS file format or version");
     if (typeof file.payload !== "string" || file.payload.length !== recordCount(file.version) * 64 || !/^[0-9a-f]+$/i.test(file.payload)) throw new Error("Invalid or truncated CPS payload");
     if (typeof file.crc32 !== "string" || !/^[0-9a-f]{8}$/i.test(file.crc32)) throw new Error("Invalid CPS checksum");
     const payload = Uint8Array.from(file.payload.match(/../g), (pair) => parseInt(pair, 16));
@@ -477,18 +529,27 @@ export function importFile(text) {
 }
 
 /** Explicit, lossless migration. Never run implicitly during radio upload. */
-export function upgradeModel(legacy) {
+export function upgradeModel(legacy, targetVersion = 5) {
     requireValid(legacy);
-    if (modelVersion(legacy) === 4) return structuredClone(legacy);
-    const model = createDefaultModel(4);
-    Object.assign(model.settings, structuredClone(legacy.settings));
-    model.vfos = structuredClone(legacy.vfos);
-    model.channels.splice(0, 32, ...structuredClone(legacy.channels));
-    for (let i = 0; i < 4; i++) {
-        model.scanLists[i] = {...createScanList(`Scan ${i + 1}`), reply:'last-heard'};
-        model.scanLists[i].channels = legacy.channels.flatMap((channel, n) => channel?.scanLists.includes(i) ? [n + 1] : []);
+    const version=modelVersion(legacy);
+    if(![4,5].includes(targetVersion) || version>targetVersion)throw new Error("Upgrade must target V4 or V5 without discarding newer fields");
+    if(version===targetVersion)return structuredClone(legacy);
+    let model;
+    if(version===4)model=structuredClone(legacy);
+    else {
+        model=createDefaultModel(4);
+        Object.assign(model.settings,structuredClone(legacy.settings));
+        model.vfos=structuredClone(legacy.vfos);
+        model.channels.splice(0,32,...structuredClone(legacy.channels));
+        for(let i=0;i<4;i++) {
+            model.scanLists[i]={...createScanList(`Scan ${i+1}`),reply:'last-heard'};
+            model.scanLists[i].channels=legacy.channels.flatMap((channel,n)=>channel?.scanLists.includes(i)?[n+1]:[]);
+        }
+        for(const channel of [...model.channels,...model.vfos])if(channel)channel.scanLists=[];
     }
-    for (const channel of [...model.channels, ...model.vfos]) if (channel) channel.scanLists = [];
+    if(targetVersion===4){requireValid(model);return model;}
+    model.contacts=Array(CONTACT_COUNT).fill(null);
+    for(const channel of [...model.channels,...model.vfos])if(channel?.mode==='P25')Object.assign(channel,{privateCall:false,destinationId:1});
     requireValid(model);
     return model;
 }
@@ -580,14 +641,38 @@ export function importChannelsCsv(text, model) {
         const channel = {name: item.name, rxHz: number(item.rxHz, 'rxHz'), txHz: number(item.txHz, 'txHz'), mode: item.mode,
             rxOnly: boolean(item.rxOnly, 'rxOnly'), powerLevel: number(item.powerLevel, 'powerLevel'), filter: item.filter,
             scanLists: item.scanLists ? item.scanLists.split(';').map(x => number(x, 'scanLists')) : []};
-        const dmr = item.mode === 'DMR';
+        const dmr = item.mode === 'DMR', p25Call = item.mode==='P25' && modelVersion(candidate)>=5;
         const used = dmr ? ['destinationId', 'colorCode', 'timeslot'] : ['nac', 'talkgroup', 'squelch'];
         for (const key of used) channel[key] = number(item[key], key);
-        const unused = dmr ? ['nac', 'talkgroup', 'squelch', 'txToneType', 'txToneValue', 'rxToneType', 'rxToneValue'] : ['destinationId', 'colorCode', 'timeslot', 'privateCall', 'repeater'];
+        if(p25Call){channel.privateCall=item.privateCall===''?false:boolean(item.privateCall,'privateCall');channel.destinationId=item.destinationId===''?1:number(item.destinationId,'destinationId');}
+        const unused = dmr ? ['nac', 'talkgroup', 'squelch', 'txToneType', 'txToneValue', 'rxToneType', 'rxToneValue'] : p25Call ? ['colorCode','timeslot','repeater'] : ['destinationId', 'colorCode', 'timeslot', 'privateCall', 'repeater'];
         if (unused.some(key => item[key] !== '')) throw new Error(`Unused ${item.mode} columns must be empty`);
         if (dmr) for (const key of ['privateCall', 'repeater']) channel[key] = boolean(item[key], key);
         else for (const key of ['txTone', 'rxTone']) channel[key] = {type: item[`${key}Type`], value: number(item[`${key}Value`], `${key}Value`)};
         candidate.channels[slot - 1] = channel;
+    }
+    requireValid(candidate);
+    return candidate;
+}
+
+/** Contact CSV is a separate, typed directory. Import merges named slots only. */
+export function exportContactsCsv(model) {
+    requireValid(model);
+    if(modelVersion(model)<5)throw new Error('Explicitly upgrade to V5 for contacts');
+    const rows=model.contacts.flatMap((contact,index)=>contact?[[index+1,contact.protocol,contact.type,contact.id,contact.name]]:[]);
+    return [['contact','protocol','type','id','name'],...rows].map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n';
+}
+export function importContactsCsv(text,model) {
+    requireValid(model);
+    if(modelVersion(model)<5)throw new Error('Explicitly upgrade to V5 for contacts');
+    const rows=parseCsv(String(text).replace(/^\uFEFF/,''));
+    if(JSON.stringify(rows.shift())!==JSON.stringify(['contact','protocol','type','id','name']))throw new Error('Use the DM32 contact CSV header from Export contacts');
+    const candidate=structuredClone(model),seen=new Set();
+    for(const row of rows) {
+        if(row.length!==5 || !/^\d+$/.test(row[0]) || !/^\d+$/.test(row[3]))throw new Error('Invalid contact CSV row');
+        const slot=Number(row[0]);
+        if(!integer(slot,1,CONTACT_COUNT)||seen.has(slot))throw new Error('Duplicate or out-of-range contact slot');
+        seen.add(slot);candidate.contacts[slot-1]={protocol:row[1],type:row[2],id:Number(row[3]),name:row[4]};
     }
     requireValid(candidate);
     return candidate;

@@ -1,11 +1,42 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { crc32, decodePayload, recordCount, RECORD_BYTES } from './model.js';
+import { crc32, decodePayload, recordCount, RECORD_BYTES } from './model.js?v=af136c6';
+import { validateMessageDraft } from './call-tools.js?v=af136c6';
 
 const MAX_FRAME = 120;
 const encoder = new TextEncoder();
 const hex32 = value => (value >>> 0).toString(16).toUpperCase().padStart(8, '0');
 const sameOrigin = (a, b) => a && b && a.revision === b.revision && a.crc === b.crc;
 const now = () => globalThis.performance?.now() ?? Date.now();
+
+// Optional read-only service discovery. Codeplug version does not imply text
+// support. Keep connection/read/upload unchanged for older firmware.
+export function parseServices(line) {
+  const match = /^CPS SERVICES 1 heard=(\d+) contacts=(\d+) p25_unit=([01]) dmr_unit=([01]) p25_text=([01]{3}) dmr_text=([01]{3})$/.exec(line.trim());
+  if (!match || Number(match[1]) > 65535 || Number(match[2]) > 65535) {
+    throw failure('Unsupported radio service capabilities.', 'CAPABILITIES');
+  }
+  const mode = (unit, text) => Object.freeze({ individualVoice: unit === '1',
+    messaging: Object.freeze({ receive: text[0] === '1', transmit: text[1] === '1', acknowledgments: text[2] === '1' }) });
+  return Object.freeze({ version: 1, historyCapacity: Number(match[1]), contactCapacity: Number(match[2]),
+    P25: mode(match[3], match[5]), DMR: mode(match[4], match[6]) });
+}
+
+const validUint = value => Number.isInteger(value) && value >= 0 && value <= 0xFFFFFFFF;
+const textCapability = bits => Object.freeze({ receive: bits[0] === '1', transmit: bits[1] === '1', acknowledgments: bits[2] === '1' });
+export function parseMessageHello(line) {
+  const match = /^CPS MSG HELLO 1 serial=(\d+) count=(\d+) capacity=(\d+) max=(\d+) p25=([01]{3}) dmr=([01]{3})$/.exec(line);
+  if (!match || !validUint(Number(match[1])) || Number(match[2]) > Number(match[3]) || Number(match[3]) > 64 || Number(match[3]) < 1 || Number(match[4]) !== 80) throw failure('Unsupported radio mailbox capabilities.', 'CAPABILITIES');
+  return Object.freeze({ version: 1, serial: Number(match[1]), count: Number(match[2]), capacity: Number(match[3]), maxText: 80,
+    P25: textCapability(match[5]), DMR: textCapability(match[6]) });
+}
+export function parseMessageItem(line) {
+  const match = /^CPS MSG ITEM (\d+) ([12]) ([01]) (\d+) (\d+) (DRAFT|QUEUED|SENDING|SENT|DELIVERED|FAILED|RECEIVED) ([012]) ([01]) (\d+) (\d+) (\d+) (\d+)$/.exec(line);
+  if (!match) throw failure('Invalid mailbox message metadata.', 'MESSAGE');
+  const [, id, protocol, kind, source, destination, state, format, unread, length, stamp, token, flags] = match;
+  const message = { id: Number(id), protocol: protocol === '1' ? 'P25' : 'DMR', type: kind === '1' ? 'unit' : 'group', sourceId: Number(source), destinationId: Number(destination), state, format: Number(format), unread: unread === '1', length: Number(length), stamp: Number(stamp), token: Number(token), flags: Number(flags), truncated: Boolean(Number(flags) & 1) };
+  if (![message.id, message.stamp, message.token].every(validUint) || !message.id || message.sourceId < 1 || message.sourceId > 0xFFFFFF || message.destinationId < 1 || message.destinationId > (message.protocol === 'P25' && message.type === 'group' ? 65535 : 0xFFFFFF) || message.length < 1 || message.length > 80 || message.flags > 1 || message.unread && state !== 'RECEIVED') throw failure('Invalid mailbox message fields.', 'MESSAGE');
+  return Object.freeze(message);
+}
 
 async function boundedCleanup(promise, milliseconds) {
   let timer;
@@ -29,7 +60,7 @@ function snapshotOrigin(origin) {
   return { revision: origin.revision, crc: origin.crc };
 }
 
-/** Bounded logical CPS V1–V4 transport; schema and geometry are pinned for the connection. */
+/** Bounded logical CPS V1–V5 transport; schema and geometry are pinned for the connection. */
 export class CpsClient {
   constructor({ serial = globalThis.navigator?.serial, timeoutMs = 3000,
     onProgress = () => {} } = {}) {
@@ -41,6 +72,7 @@ export class CpsClient {
     this._connected = this._tainted = this._busy = false;
     this._origin = null;
     this._protocol = null;
+    this._messageCapabilities = null;
     this._pending = [];
     this._loss = null;
     this._closing = null;
@@ -54,6 +86,7 @@ export class CpsClient {
 
   get connected() { return this._connected && !this._tainted; }
   get protocolVersion() { return this._protocol; }
+  get messageCapabilities() { return this._messageCapabilities; }
 
   _progress(phase, current, message) {
     // Presentation callbacks must never turn a confirmed radio commit into an error.
@@ -98,7 +131,7 @@ export class CpsClient {
 
   async _exchange(command) {
     this._assertConnected();
-    if (!/^CPS (?:HELLO|GET [0-9]+|BEGIN [0-9A-F]{8} [0-9]+|PUT [0-9A-F]{8} [0-9]+ [0-9A-F]{64}|COMMIT [0-9A-F]{8} [0-9A-F]{8}|ABORT [0-9A-F]{8})$/.test(command)) {
+    if (!/^CPS (?:HELLO|LIVE|SERVICES|GET [0-9]+|BEGIN [0-9A-F]{8} [0-9]+|PUT [0-9A-F]{8} [0-9]+ [0-9A-F]{64}|COMMIT [0-9A-F]{8} [0-9A-F]{8}|ABORT [0-9A-F]{8}|MSG (?:HELLO|LIST [0-9]+|GET [0-9]+ [0-9]+|(?:READ|DELETE) [0-9]+|BEGIN [0-9]+ [12] [01] [0-9]+ [01] [012] [0-9]+|PUT [0-9]+ [0-9]+ [0-9A-F]{2,64}|(?:SEND|CANCEL) [0-9]+))$/.test(command)) {
       throw failure('Invalid logical CPS command.', 'COMMAND');
     }
     const request = encoder.encode(command + '\r\n');
@@ -123,13 +156,14 @@ export class CpsClient {
             throw failure('Malformed or unsolicited CPS response. Reconnect and read again.', 'FRAME');
           }
           const response = String.fromCharCode(...bytes.slice(0, -2));
-          if (/^CPS ERR [A-Z_]+$/.test(response)) {
-            const radioCode = response.slice(8);
+          if (/^CPS (?:MSG )?ERR [A-Z_]+$/.test(response)) {
+            const radioCode = response.split(' ').at(-1);
             const message = radioCode === 'TRANSACTION'
               ? 'An earlier transfer is still staged. Wait 60 seconds without sending commands, then reconnect and read the radio.'
               : radioCode === 'BUSY'
                 ? 'The radio is busy or PTT is held. Release PTT and finish the current operation before programming.'
-                : 'Radio refused programming: ' + radioCode;
+                : command.startsWith('CPS MSG ') ? 'Radio refused message operation: ' + radioCode
+                  : 'Radio refused programming: ' + radioCode;
             throw failure(message, 'REFUSED', { radioCode });
           }
           return response;
@@ -154,8 +188,8 @@ export class CpsClient {
 
   async _hello() {
     const reply = await this._exchange('CPS HELLO');
-    const match = /^CPS HELLO DM32P25 ([1234]) (32|256) 2 ([0-9]+) ([0-9A-F]{8})$/.exec(reply);
-    if (!match || Number(match[3]) > 0xFFFFFFFF || Number(match[2]) !== (Number(match[1]) === 4 ? 256 : 32) || (this._protocol !== null && this._protocol !== Number(match[1]))) {
+    const match = /^CPS HELLO DM32P25 ([12345]) (32|256) 2 ([0-9]+) ([0-9A-F]{8})$/.exec(reply);
+    if (!match || Number(match[3]) > 0xFFFFFFFF || Number(match[2]) !== (Number(match[1]) >= 4 ? 256 : 32) || (this._protocol !== null && this._protocol !== Number(match[1]))) {
       throw this._unexpected('Wrong firmware identity, geometry or CPS protocol.');
     }
     this._protocol = Number(match[1]);
@@ -163,12 +197,13 @@ export class CpsClient {
   }
 
   /** Call directly from a user click; this deliberately never discovers or opens ports automatically. */
-  async connect() {
+  async connect({ messaging = false } = {}) {
     return this._run(async () => {
       if (!this.serial?.requestPort) throw failure('Web Serial is unavailable in this browser.', 'UNSUPPORTED');
       if (this._port || this._closing) throw failure('Disconnect the previous serial connection first.', 'IN_USE');
       this._origin = null;
       this._protocol = null;
+      this._messageCapabilities = null;
       this._tainted = false;
       const generation = ++this._generation;
       try {
@@ -190,7 +225,7 @@ export class CpsClient {
         this._loss = { promise, reject };
         this.serial.addEventListener?.('disconnect', this._onDisconnect);
         this._connected = true;
-        return await this._hello();
+        return messaging ? await this._messageHello() : await this._hello();
       } catch (error) {
         await this.disconnect();
         throw error;
@@ -204,6 +239,7 @@ export class CpsClient {
     this._connected = false;
     this._origin = null;
     this._protocol = null;
+    this._messageCapabilities = null;
     this._loss?.reject(failure('Disconnected. Reconnect and read the radio again.', 'DISCONNECTED'));
     this.serial?.removeEventListener?.('disconnect', this._onDisconnect);
     const reader = this._reader, writer = this._writer, port = this._port;
@@ -220,6 +256,126 @@ export class CpsClient {
       await boundedCleanup(Promise.resolve().then(() => port?.close()), Math.min(this.timeoutMs, 1000));
     })();
     try { await this._closing; } finally { this._closing = null; }
+  }
+
+  // Message RPCs share the same serial arbiter as codeplug operations. They do
+  // not send CPS HELLO or open a programming transaction, so reception continues.
+  async _messageHello() {
+    try {
+      const capability = parseMessageHello(await this._exchange('CPS MSG HELLO'));
+      this._messageCapabilities = capability;
+      return capability;
+    } catch (error) {
+      if (error.code === 'REFUSED' && error.radioCode === 'TRANSACTION') {
+        // Earlier parsers use TRANSACTION for every unknown command, even
+        // without an active write. Distinguish them with a read-only probe;
+        // never abort or alter a genuine staged codeplug transaction.
+        let unavailable = false;
+        try {
+          const services = parseServices(await this._exchange('CPS SERVICES'));
+          unavailable = !['P25', 'DMR'].some(mode => Object.values(services[mode].messaging).some(Boolean));
+        } catch (probeError) {
+          if (probeError.code === 'REFUSED' && ['COMMAND', 'UNSUPPORTED', 'TRANSACTION'].includes(probeError.radioCode)) unavailable = true;
+          else throw probeError;
+        }
+        if (!unavailable) throw error;
+        this._messageCapabilities = null;
+        return null;
+      }
+      if (error.code === 'REFUSED' && ['COMMAND', 'UNSUPPORTED'].includes(error.radioCode)) {
+        this._messageCapabilities = null;
+        return null; // Older radio: local drafts remain usable.
+      }
+      throw error;
+    }
+  }
+
+  async messagingCapabilities() {
+    return this._run(async () => { this._assertConnected(); return this._messageHello(); });
+  }
+
+  async resumeRadio() {
+    return this._run(async () => {
+      if (await this._exchange('CPS LIVE') !== 'CPS OK LIVE') throw this._unexpected('Unexpected radio resume acknowledgement.');
+    });
+  }
+
+  async messages() {
+    return this._run(async () => {
+      this._assertConnected();
+      const capability = await this._messageHello();
+      if (!capability) return { capabilities: null, messages: [] };
+      const messages = [];
+      for (let index = 0; index < capability.count; index++) {
+        const message = parseMessageItem(await this._exchange(`CPS MSG LIST ${index}`));
+        if (messages.some(item => item.id === message.id)) throw this._unexpected('Duplicate mailbox message ID.');
+        let text = '';
+        for (let offset = 0; offset < message.length; offset += 32) {
+          const reply = await this._exchange(`CPS MSG GET ${message.id} ${offset}`);
+          const match = /^CPS MSG TEXT ([0-9]+) ([0-9]+) ([0-9A-F]{2,64})$/.exec(reply);
+          if (!match || Number(match[1]) !== message.id || Number(match[2]) !== offset || match[3].length % 2 ||
+              match[3].length !== Math.min(32, message.length - offset) * 2) throw this._unexpected('Invalid mailbox text response.');
+          const piece = String.fromCharCode(...match[3].match(/../g).map(byte => parseInt(byte, 16)));
+          if (/[^\x20-\x7E]/.test(piece)) throw this._unexpected('Invalid message text encoding.');
+          text += piece;
+        }
+        messages.push({ ...message, text });
+      }
+      const after = await this._messageHello();
+      if (!after || after.serial !== capability.serial || after.count !== capability.count) {
+        throw failure('The mailbox changed while it was read. Refresh to retrieve the latest messages.', 'MAILBOX_CHANGED');
+      }
+      return { capabilities: after, messages };
+    });
+  }
+
+  async messageAction(action, id) {
+    if (!['READ', 'DELETE'].includes(action) || !validUint(id) || !id) throw failure('Invalid message action.', 'MESSAGE');
+    return this._run(async () => {
+      if (await this._exchange(`CPS MSG ${action} ${id}`) !== `CPS MSG OK ${action} ${id}`) throw this._unexpected('Unexpected message acknowledgement.');
+    });
+  }
+
+  async sendMessage(draft, { acknowledgment = false, format = draft?.protocol === 'P25' ? 0 : 2, token } = {}) {
+    const issues = validateMessageDraft(draft);
+    if (issues.length) throw failure(issues.join(' '), 'MESSAGE');
+    if (![0, 1, 2].includes(format) || typeof acknowledgment !== 'boolean' || acknowledgment && (draft.type === 'group' || format === 2) || draft.protocol === 'P25' && (draft.type !== 'unit' || format !== 0 || acknowledgment)) {
+      throw failure('Group delivery acknowledgments are unavailable. Check the message format and destination.', 'MESSAGE');
+    }
+    if (token === undefined) {
+      if (!globalThis.crypto?.getRandomValues) throw failure('Secure message tokens are unavailable.', 'UNSUPPORTED');
+      token = globalThis.crypto.getRandomValues(new Uint32Array(1))[0] || 1;
+    }
+    if (!validUint(token) || !token) throw failure('Invalid message token.', 'MESSAGE');
+    return this._run(async () => {
+      const capabilities = await this._messageHello();
+      if (!capabilities?.[draft.protocol].transmit) throw failure(`${draft.protocol} message transmission is unavailable on this radio.`, 'UNSUPPORTED');
+      if (acknowledgment && !capabilities[draft.protocol].acknowledgments) throw failure('This radio cannot request a delivery acknowledgment for this protocol.', 'UNSUPPORTED');
+      const begin = `CPS MSG BEGIN ${token} ${draft.protocol === 'P25' ? 1 : 2} ${draft.type === 'unit' ? 1 : 0} ${draft.destinationId} ${acknowledgment ? 1 : 0} ${format} ${draft.text.length}`;
+      let staged = false, submitted = false;
+      try {
+        if (await this._exchange(begin) !== `CPS MSG OK BEGIN ${token}`) throw this._unexpected('Unexpected message preparation acknowledgement.');
+        staged = true;
+        for (let offset = 0; offset < draft.text.length; offset += 32) {
+          const text = Array.from(draft.text.slice(offset, offset + 32), character => character.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')).join('');
+          if (await this._exchange(`CPS MSG PUT ${token} ${offset} ${text}`) !== `CPS MSG OK PUT ${token} ${offset}`) throw this._unexpected('Unexpected message text acknowledgement.');
+        }
+        submitted = true;
+        const reply = await this._exchange(`CPS MSG SEND ${token}`);
+        const match = /^CPS MSG OK SEND ([0-9]+) ([0-9]+)$/.exec(reply);
+        if (!match || Number(match[1]) !== token || !validUint(Number(match[2])) || !Number(match[2])) throw this._unexpected('Unexpected message queue acknowledgement.');
+        return { token, id: Number(match[2]), state: 'QUEUED' };
+      } catch (error) {
+        if (submitted && error.code !== 'REFUSED') {
+          throw failure(`Message submission is uncertain (token ${token}). Reconnect and refresh the outbox before deciding whether to send again.`, 'MESSAGE_UNCERTAIN', { uncertain: true, token, cause: error });
+        }
+        if (staged && this.connected) {
+          try { if (await this._exchange(`CPS MSG CANCEL ${token}`) !== `CPS MSG OK CANCEL ${token}`) throw this._unexpected('Unexpected message cancel acknowledgement.'); }
+          catch { /* The original preparation failure remains useful. */ }
+        }
+        throw error;
+      }
+    });
   }
 
   async read() {
@@ -258,9 +414,9 @@ export class CpsClient {
       const model = decodePayload(image);
       const count = recordCount(this._protocol);
       if (image.length !== count * RECORD_BYTES) {
-        throw failure(this._protocol === 4
-          ? 'This is a legacy 32-channel codeplug. Explicitly upgrade it to V4 before writing to this radio. No transfer was started.'
-          : 'This radio supports 32 channels. Expanded V4 data cannot be truncated; use V4 firmware or a separate legacy codeplug. No transfer was started.', 'UNSUPPORTED_GEOMETRY');
+        throw failure(this._protocol >= 4
+          ? `The codeplug schema does not match this radio. Explicitly upgrade to V${this._protocol} when supported; no transfer was started.`
+          : 'This radio does not support this codeplug schema. Expanded data cannot be truncated; use matching firmware or a separate legacy codeplug. No transfer was started.', 'UNSUPPORTED_GEOMETRY');
       }
       if (this._protocol === 1 && [...model.channels, ...model.vfos].some(channel => channel?.mode === 'DMR')) {
         throw failure('This radio uses CPS protocol 1 and cannot store DMR channels. DMR requires the unified firmware.', 'UNSUPPORTED_MODE');
