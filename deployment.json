@@ -46,7 +46,8 @@
   "export_adjustments": [
     "Normalize three legacy non-UTF-8 en dashes in model.js error messages",
     "Version root HTML asset URLs and core relative module imports with d5e2134",
-    "Serve the complete byte-identical flasher source tree from firmware-assets/d5e2134"
+    "Serve the existing flasher runtime plus the native-fetch hotfix from firmware-assets/32e00b4",
+    "Hosted flasher only: preserve the existing CPS and bind native fetch to globalThis"
   ],
   "assets": {
     "index.html": "f1b7b4c59b537a7f979226d2f3d3e9d60c97ef1fd4f65794ecef415132a4b245",
@@ -56,21 +57,21 @@
     "call-tools.js": "7dda25a10722db40988b7b8921165e64f24f055efa1c866e93e8f7d479ec75cc",
     "styles.css": "90196abf11882f6b18db0a4b897f46229d604ec72b4518d7a3f6d2bb2cb4ebd2",
     "vendor/undo.js": "034fd4a3439add324b0d1205fc0e840c9e2f2db31b64eebb5ec4874e9661b4ed",
-    "firmware-assets/d5e2134/app.js": "febe9c9d25882b1f2872971ed047aac25d21d5addde9e1207957c4d30bce61bf",
-    "firmware-assets/d5e2134/backup-export.js": "394308ad5bd124ca0ba0edf8725a628d256cb8a3684ea3f31a0a004772c72785",
-    "firmware-assets/d5e2134/device.js": "2728bd8581b25ac986113b27c7fd159d9fc9d219521275735ad501f873cde1f8",
-    "firmware-assets/d5e2134/package.js": "ebddbfef80f0c05a4e3316b8a53de0ce26e63157f325e3ea10b15dab61e5ac22",
-    "firmware-assets/d5e2134/styles.css": "d3153e9606e92acbef97fbe0daf40fb59703d08eff0c4393c90a59e25afe12e3",
-    "firmware-assets/d5e2134/vendor/diag.js": "87ea6cc2e5a0fff880f105dea92223bb94f78c73fc421bed4f0d727cb92400fd",
-    "firmware-assets/d5e2134/vendor/dm32-loader.json": "bc81d7abca05e462b9c56ae9db6911c1d02547118a6109618fcbb498bbbe12c1",
-    "firmware-assets/d5e2134/vendor/UPSTREAM.json": "784288f0cf353e81cddee26b609c44ad67ce46f9bdaa7fc58946e733391bf35d",
-    "firmware-assets/d5e2134/vendor/flasher/bfloader.js": "ed5db6b19cc6eda884dc8ceb6d716ca97622e0642a6eeb4beaf35e34f3b632bc",
-    "firmware-assets/d5e2134/vendor/flasher/bytes.js": "b13dcbcbc9ac4eed46c7ae9d7730a464fb034c5dd60dd35561c9f76949651b35",
-    "firmware-assets/d5e2134/vendor/flasher/link.js": "2cbfbfb84705882fd6d14b7564e15f0271d076c918b84bf2f9282fb29a73c3db",
-    "firmware-assets/d5e2134/vendor/flasher/lz4.js": "047bf2e6c149efcd69b89f82246cfc4258f78ac099801e6a5a1f006577c17200",
-    "firmware-assets/d5e2134/vendor/flasher/protect.js": "1c1112e912e21584bc1a25919a6434efff89b347c37af1bccba73f362a704d37",
-    "firmware-assets/d5e2134/vendor/flasher/stub.js": "16109aaed3c29256271e9ccd886129dce0e5ff3b92c083cb7bb98866e6e25080",
-    "firmware.html": "1599e641ce75be9f0c90030eeeb282be92b7737651b3c6ddec96e147de6f2c4b"
+    "firmware-assets/32e00b4/app.js": "febe9c9d25882b1f2872971ed047aac25d21d5addde9e1207957c4d30bce61bf",
+    "firmware-assets/32e00b4/backup-export.js": "394308ad5bd124ca0ba0edf8725a628d256cb8a3684ea3f31a0a004772c72785",
+    "firmware-assets/32e00b4/device.js": "fe55cfe569fd58f865d6c519fdfe9ea6944d96e2ac42e9e8243adb66e2498bbe",
+    "firmware-assets/32e00b4/package.js": "ebddbfef80f0c05a4e3316b8a53de0ce26e63157f325e3ea10b15dab61e5ac22",
+    "firmware-assets/32e00b4/styles.css": "d3153e9606e92acbef97fbe0daf40fb59703d08eff0c4393c90a59e25afe12e3",
+    "firmware-assets/32e00b4/vendor/diag.js": "87ea6cc2e5a0fff880f105dea92223bb94f78c73fc421bed4f0d727cb92400fd",
+    "firmware-assets/32e00b4/vendor/dm32-loader.json": "bc81d7abca05e462b9c56ae9db6911c1d02547118a6109618fcbb498bbbe12c1",
+    "firmware-assets/32e00b4/vendor/UPSTREAM.json": "784288f0cf353e81cddee26b609c44ad67ce46f9bdaa7fc58946e733391bf35d",
+    "firmware-assets/32e00b4/vendor/flasher/bfloader.js": "ed5db6b19cc6eda884dc8ceb6d716ca97622e0642a6eeb4beaf35e34f3b632bc",
+    "firmware-assets/32e00b4/vendor/flasher/bytes.js": "b13dcbcbc9ac4eed46c7ae9d7730a464fb034c5dd60dd35561c9f76949651b35",
+    "firmware-assets/32e00b4/vendor/flasher/link.js": "2cbfbfb84705882fd6d14b7564e15f0271d076c918b84bf2f9282fb29a73c3db",
+    "firmware-assets/32e00b4/vendor/flasher/lz4.js": "047bf2e6c149efcd69b89f82246cfc4258f78ac099801e6a5a1f006577c17200",
+    "firmware-assets/32e00b4/vendor/flasher/protect.js": "1c1112e912e21584bc1a25919a6434efff89b347c37af1bccba73f362a704d37",
+    "firmware-assets/32e00b4/vendor/flasher/stub.js": "16109aaed3c29256271e9ccd886129dce0e5ff3b92c083cb7bb98866e6e25080",
+    "firmware.html": "dbf5c951970ddecb2f296e4581cab0106b26b8790e5deb0c008ef46dc7aad9f9"
   },
   "validation": {
     "host_ci_run": 43132542099,
@@ -88,17 +89,26 @@
     "web_host_ci": "in progress at publication",
     "node_suite": "115 passed; zero failures or skipped tests",
     "cps_browser": "Existing CPS runtime retained; actual-parser tests and browser navigation passed in this revision",
-    "flasher_dump_export": "8 helper tests passed, including full-size raw dumps, independent Python ZIP/CRC validation and sealed-backup round trip"
+    "flasher_dump_export": "8 helper tests passed, including full-size raw dumps, independent Python ZIP/CRC validation and sealed-backup round trip",
+    "fetch_receiver_hotfix": {
+      "source_revision": "32e00b493c00a6d5d7fa97b61340d327e35c2dd4",
+      "node_suite": "115 passed; six skipped; zero failures",
+      "source_browser": "18 passed, including real native Chromium reader-asset loading; simulated serial only",
+      "original_hosted_runtime": "Native Chromium reproduced Illegal invocation at device.js:97",
+      "standalone_native_fetch": "passed in native Chromium against the exact hosted export; no serial access",
+      "hardware_accessed": false
+    }
   },
   "firmware_candidate_revision": "af136c6e15b524a4dff2cb049626cd6207a566a4",
   "firmware_installer": {
     "path": "firmware.html",
-    "runtime": "firmware-assets/d5e2134",
+    "runtime": "firmware-assets/32e00b4",
     "status": "experimental",
     "physical_browser_flash_qualified": false,
     "hardware_accessed_during_development": false,
     "uploads_private_files": false,
     "rf_b_nrfb_050": "currently incompatible; support planned",
-    "full_dump_export": "local ZIP; two matching full reads; 1 MiB program and 16 MiB data"
+    "full_dump_export": "local ZIP; two matching full reads; 1 MiB program and 16 MiB data",
+    "fetch_hotfix_source_revision": "32e00b493c00a6d5d7fa97b61340d327e35c2dd4"
   }
 }

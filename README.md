@@ -120,7 +120,7 @@ completion is shown separately from independent verification. Keep the CLI
 installer/recovery tools available. Physical browser flashing has not yet been
 qualified; the browser installer is experimental.
 
-See [the complete browser instructions](firmware-assets/d5e2134/README.md). The
+See [the complete browser instructions](firmware-assets/32e00b4/README.md). The
 versioned runtime directory keeps the entire module graph immutable, including
 RadioFoundry's byte-identical MIT transport modules and checked RAM reader.
 
