@@ -253,7 +253,7 @@ See [upstream provenance](UPSTREAM.md) and the
 has no program-flash, bootloader, calibration or raw-address commands. The
 separate message service can explicitly transmit reviewed text. The separate
 **Firmware** page uses the factory updater and a pinned RAM reader; see
-[browser installation](firmware-assets/caedb78/README.md). Its file and serial sessions do not
+[browser installation](firmware-assets/302bb39/README.md). Its file and serial sessions do not
 share an open CPS programming connection. CLI installation and recovery tools
 remain available.
 
@@ -262,7 +262,7 @@ multimode firmware; support is planned. The Firmware page provides a separate
 **Backup / full dump only** mode so owners can save matching reads of the full
 1 MiB program and 16 MiB data flash, download a ZIP, and send it privately to the
 maintainer. No supported codec is needed to create this diagnostic dump, and no
-upload occurs. See [dump and sharing instructions](firmware-assets/caedb78/README.md#save-a-full-dump-to-send-privately).
+upload occurs. See [dump and sharing instructions](firmware-assets/302bb39/README.md#save-a-full-dump-to-send-privately).
 
 ## Checks
 
@@ -315,3 +315,22 @@ browser changes do not change the identity of an already built application.
 The export versions module dependencies, preserves pinned loader bytes and writes
 `deployment.json` with hashes for the complete public asset set. Validate that
 exact export before pushing it to the Studio repository.
+
+## Sharing the CPS and firmware installer
+
+The public CPS and `firmware.html` include static Open Graph and X Card metadata,
+with separate 1200 × 630 PNG previews under `social/`. Pasting the public page URL
+into a service with link previews enabled lets its crawler read the title,
+description and image without running the editor or opening a serial connection.
+Preview appearance and caching are controlled by the receiving service.
+
+When changing the advertised beta release, update the version, description and
+image URL in `firmware.html`, then regenerate the matching card:
+
+```powershell
+# Requires Pillow; generated PNGs are committed so deployment needs no renderer.
+python scripts/render-cps-share-cards.py --firmware-version 0.3.0-beta.1
+```
+
+Use a new image filename when changing artwork so cached shares can fetch the new
+asset. The committed export includes these images in `deployment.json` hashes.

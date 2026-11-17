@@ -4,11 +4,11 @@ import {
   modelVersion, upgradeModel, createScanList, clearChannels, moveChannel, bulkEditChannels, exportChannelsCsv, importChannelsCsv,
   CONTACT_COUNT, CONTACT_NAME_BYTES, exportContactsCsv, importContactsCsv,
   createTrunkSystem, clearTrunkSystem,
-} from './model.js?v=caedb78';
-import { CpsClient } from './transport.js?v=caedb78';
-import { AppletClient, APPLET_LIMITS, parseAppletPackage } from './applets.js?v=caedb78';
-import { History } from './vendor/undo.js?v=caedb78';
-import { findContact, channelAddress, MESSAGE_DRAFT_LIMIT, validateMessageDraft, exportMessageDraft, importMessageDraft, MESSAGE_FORMATS, MESSAGE_STATES, messageReplyDraft } from './call-tools.js?v=caedb78';
+} from './model.js?v=302bb39';
+import { CpsClient } from './transport.js?v=302bb39';
+import { AppletClient, APPLET_LIMITS, parseAppletPackage } from './applets.js?v=302bb39';
+import { History } from './vendor/undo.js?v=302bb39';
+import { findContact, channelAddress, MESSAGE_DRAFT_LIMIT, validateMessageDraft, exportMessageDraft, importMessageDraft, MESSAGE_FORMATS, MESSAGE_STATES, messageReplyDraft } from './call-tools.js?v=302bb39';
 
 // The editor follows RadioFoundry's useful table / details / problems workflow.
 // This logical CPS transport is specific to the custom unified DM32 firmware.

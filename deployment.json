@@ -1,6 +1,6 @@
 {
   "application": "DM32 Studio",
-  "source_revision": "caedb787dc24a96cf73fa0423ea4f2e689c5af4d",
+  "source_revision": "302bb39638545aa7071e3223d91586c8f9f8cac1",
   "source_status": "Committed V6 trunking and APP service CPS; see validation for exact scope",
   "logical_protocol_versions": [
     1,
@@ -54,7 +54,7 @@
   "firmware_release_version": "0.3.0-beta.1",
   "firmware_installer": {
     "path": "firmware.html",
-    "runtime": "firmware-assets/caedb78",
+    "runtime": "firmware-assets/302bb39",
     "status": "experimental",
     "physical_browser_flash_qualified": false,
     "uploads_private_files": false,
@@ -64,18 +64,18 @@
   },
   "export_adjustments": [
     "Normalize legacy model.js dash encoding",
-    "Version root HTML and JS module dependencies with caedb78",
-    "Preserve the complete flasher dependency tree and pinned vendor bytes under firmware-assets/caedb78"
+    "Version root HTML and JS module dependencies with 302bb39",
+    "Preserve the complete flasher dependency tree and pinned vendor bytes under firmware-assets/302bb39"
   ],
   "assets": {
     ".nojekyll": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "CPS_PROTOCOL.md": "8554163327c456d10fce796b14b156ddac4170fc5b54fa62e07d940a8768c4d1",
     "LICENSE": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
-    "README.md": "8f8684f009760bec09b6b4128efdceb1f239e3f6c87988f886d1734968e366d0",
+    "README.md": "a932945ecc9044777f3afb92173fb620a7f16190c5a33ef18115fbd4e2b77c03",
     "TRUNKING.md": "7a98864ac363c50596aa1d2c3cb07ad25b3e7a9a524216e4529a519390eec5db",
-    "UPSTREAM.md": "6f381a1d98f221a8e4a3f9cbeba79c4f91f391d3b9593072c648bc1b44988ac2",
-    "app.js": "4f968261c85bb62f940b0d71f8b6adb752ac3efe66d10c0513a41a047a97219e",
-    "applets.js": "6a2e8773d123dc28fc63fb8e24d6ca81def01e0322ce20ca1ad4e301284d0707",
+    "UPSTREAM.md": "733068ff44245a4d35fe11311fc2bfc5bd5fd6c092632d3fa3f8f6df93fc8845",
+    "app.js": "e80efa0d5fc6156e62075d865ab38f5833c2d51a6cb256b71f7098e992712114",
+    "applets.js": "19e9f2a791ba3858b37816fc058dcb32231b0678b4a164158e5c2ce0770379dc",
     "applets/AGENT_GUIDE.md": "ef1ca1f277eabb77296afb3f78a3898b81b68e446339f0a57b7c37cc25fb6f99",
     "applets/README.md": "a1d4d05465f82bb97be90e978afea207ac0a3a361102f64136fd75b7024ad37b",
     "applets/applet-builder.zip": "f98c4010c4e5ea36e4658c047e9fd15f308ccd3eaf68dbc4aa1c266f6026f894",
@@ -85,67 +85,93 @@
     "applets/examples/same-watch.dapp": "a937db43c5da62e0fcb4e43aaa139fcea6315d8d9ffad910ef5e62b07510098a",
     "applets/examples/same-watch.dappsrc": "153a5b8469735ba92bda972dffa881fb5aa87d2fe9a28465003a80a08daab081",
     "call-tools.js": "7dda25a10722db40988b7b8921165e64f24f055efa1c866e93e8f7d479ec75cc",
-    "firmware-assets/caedb78/README.md": "a204ba5e73f31b4d641aebecaf75159da241b1a863b681c3d7b6c94d216d54e8",
-    "firmware-assets/caedb78/app.js": "6f5408c4ee954e5c5f4a5cb5c97e5200777520f144d738fe1a057e3d2f9a91b7",
-    "firmware-assets/caedb78/backup-export.js": "394308ad5bd124ca0ba0edf8725a628d256cb8a3684ea3f31a0a004772c72785",
-    "firmware-assets/caedb78/device.js": "35becc38cddcb445a9ba44663553f527682510d9ebff99f19e2bbe6208940780",
-    "firmware-assets/caedb78/package.js": "ebddbfef80f0c05a4e3316b8a53de0ce26e63157f325e3ea10b15dab61e5ac22",
-    "firmware-assets/caedb78/styles.css": "d3153e9606e92acbef97fbe0daf40fb59703d08eff0c4393c90a59e25afe12e3",
-    "firmware-assets/caedb78/vendor/.gitattributes": "a79691a93b46e49ce460c26ef22afcc03d6eca1e63bf2edbc20e96159510f6c9",
-    "firmware-assets/caedb78/vendor/LICENSE.RadioFoundry": "9988da23b503eebd9b627eca5bea80742257eec657c2a6916a705a301de42f67",
-    "firmware-assets/caedb78/vendor/UPSTREAM.json": "784288f0cf353e81cddee26b609c44ad67ce46f9bdaa7fc58946e733391bf35d",
-    "firmware-assets/caedb78/vendor/diag.js": "87ea6cc2e5a0fff880f105dea92223bb94f78c73fc421bed4f0d727cb92400fd",
-    "firmware-assets/caedb78/vendor/dm32-loader.json": "bc81d7abca05e462b9c56ae9db6911c1d02547118a6109618fcbb498bbbe12c1",
-    "firmware-assets/caedb78/vendor/flasher/bfloader.js": "ed5db6b19cc6eda884dc8ceb6d716ca97622e0642a6eeb4beaf35e34f3b632bc",
-    "firmware-assets/caedb78/vendor/flasher/bytes.js": "b13dcbcbc9ac4eed46c7ae9d7730a464fb034c5dd60dd35561c9f76949651b35",
-    "firmware-assets/caedb78/vendor/flasher/link.js": "2cbfbfb84705882fd6d14b7564e15f0271d076c918b84bf2f9282fb29a73c3db",
-    "firmware-assets/caedb78/vendor/flasher/lz4.js": "047bf2e6c149efcd69b89f82246cfc4258f78ac099801e6a5a1f006577c17200",
-    "firmware-assets/caedb78/vendor/flasher/protect.js": "1c1112e912e21584bc1a25919a6434efff89b347c37af1bccba73f362a704d37",
-    "firmware-assets/caedb78/vendor/flasher/stub.js": "16109aaed3c29256271e9ccd886129dce0e5ff3b92c083cb7bb98866e6e25080",
-    "firmware.html": "dd62f2dc2e53b581ecc2dac12092f56ca6b90fec4133733fa46e8b63e43434d6",
-    "index.html": "e900f352ebf80f8b88a158058ec7dff76302a3dd1f3fecc58292539726f7b745",
+    "firmware-assets/302bb39/README.md": "a204ba5e73f31b4d641aebecaf75159da241b1a863b681c3d7b6c94d216d54e8",
+    "firmware-assets/302bb39/app.js": "6f5408c4ee954e5c5f4a5cb5c97e5200777520f144d738fe1a057e3d2f9a91b7",
+    "firmware-assets/302bb39/backup-export.js": "394308ad5bd124ca0ba0edf8725a628d256cb8a3684ea3f31a0a004772c72785",
+    "firmware-assets/302bb39/device.js": "35becc38cddcb445a9ba44663553f527682510d9ebff99f19e2bbe6208940780",
+    "firmware-assets/302bb39/package.js": "ebddbfef80f0c05a4e3316b8a53de0ce26e63157f325e3ea10b15dab61e5ac22",
+    "firmware-assets/302bb39/styles.css": "d3153e9606e92acbef97fbe0daf40fb59703d08eff0c4393c90a59e25afe12e3",
+    "firmware-assets/302bb39/vendor/.gitattributes": "a79691a93b46e49ce460c26ef22afcc03d6eca1e63bf2edbc20e96159510f6c9",
+    "firmware-assets/302bb39/vendor/LICENSE.RadioFoundry": "9988da23b503eebd9b627eca5bea80742257eec657c2a6916a705a301de42f67",
+    "firmware-assets/302bb39/vendor/UPSTREAM.json": "784288f0cf353e81cddee26b609c44ad67ce46f9bdaa7fc58946e733391bf35d",
+    "firmware-assets/302bb39/vendor/diag.js": "87ea6cc2e5a0fff880f105dea92223bb94f78c73fc421bed4f0d727cb92400fd",
+    "firmware-assets/302bb39/vendor/dm32-loader.json": "bc81d7abca05e462b9c56ae9db6911c1d02547118a6109618fcbb498bbbe12c1",
+    "firmware-assets/302bb39/vendor/flasher/bfloader.js": "ed5db6b19cc6eda884dc8ceb6d716ca97622e0642a6eeb4beaf35e34f3b632bc",
+    "firmware-assets/302bb39/vendor/flasher/bytes.js": "b13dcbcbc9ac4eed46c7ae9d7730a464fb034c5dd60dd35561c9f76949651b35",
+    "firmware-assets/302bb39/vendor/flasher/link.js": "2cbfbfb84705882fd6d14b7564e15f0271d076c918b84bf2f9282fb29a73c3db",
+    "firmware-assets/302bb39/vendor/flasher/lz4.js": "047bf2e6c149efcd69b89f82246cfc4258f78ac099801e6a5a1f006577c17200",
+    "firmware-assets/302bb39/vendor/flasher/protect.js": "1c1112e912e21584bc1a25919a6434efff89b347c37af1bccba73f362a704d37",
+    "firmware-assets/302bb39/vendor/flasher/stub.js": "16109aaed3c29256271e9ccd886129dce0e5ff3b92c083cb7bb98866e6e25080",
+    "firmware.html": "2144af61bce2e4882bf63e54f30b6af124b408374abea96dff7fd9c35139bbc5",
+    "index.html": "a27317599607e18ba3907b700991e55464b5522b6f9d0d4bddc7f2d1aadd57e6",
     "model.js": "78ccfb93bd7dac1141121e13ca73c20bdebd8fdd8a97a0f10a55054ddd49d428",
+    "social/firmware-0.3.0-beta.1.png": "be7dc3da29dcb3941e91724b60fb127f9b55fc898aa6dac0f78a401e8ebc0b18",
+    "social/studio-v1.png": "412337e730aa4d239ab51b46dd5120be7070f26dbc7e6dae9e7c73e6f4aa07ed",
     "styles.css": "93705277112d5b1e730c90c8cc146ac79cb246af955477ac68b7343e3980aa9c",
-    "transport.js": "a57df02c2f7a779816ec6ce6a78c568494134a90a81a62a5d5b0f99f9552fb39",
+    "transport.js": "4bc2d9cabc697a9591831274fa90f47d58961c9e9887a59c9a8e932910386316",
     "vendor/LICENSE.RadioFoundry": "9988da23b503eebd9b627eca5bea80742257eec657c2a6916a705a301de42f67",
     "vendor/undo.js": "034fd4a3439add324b0d1205fc0e840c9e2f2db31b64eebb5ec4874e9661b4ed"
   },
   "validation": {
-    "source_commit": "caedb787dc24a96cf73fa0423ea4f2e689c5af4d",
-    "node_tests": 139,
-    "node_failures": 0,
-    "node_skipped": 0,
-    "builder_reproducibility_tests": 2,
-    "final_builder_protocol_tests": 14,
-    "actual_firmware_cps_parser": true,
-    "source_browser_scenarios": {
-      "cps_ui": 21,
-      "contacts_messages": 7,
-      "applets_ui": 8,
-      "flasher_ui_and_native_fetch": 18
+    "change_scope": "Static link-preview metadata and PNG artwork; no radio or application behavior changes",
+    "baseline_source_commit": "caedb787dc24a96cf73fa0423ea4f2e689c5af4d",
+    "baseline_validation": {
+      "source_commit": "caedb787dc24a96cf73fa0423ea4f2e689c5af4d",
+      "node_tests": 139,
+      "node_failures": 0,
+      "node_skipped": 0,
+      "builder_reproducibility_tests": 2,
+      "final_builder_protocol_tests": 14,
+      "actual_firmware_cps_parser": true,
+      "source_browser_scenarios": {
+        "cps_ui": 21,
+        "contacts_messages": 7,
+        "applets_ui": 8,
+        "flasher_ui_and_native_fetch": 18
+      },
+      "simulated_serial_only": true,
+      "physical_browser_flash_qualified": false,
+      "exact_export_browser": {
+        "native_loader_fetch": 1,
+        "applets": 8
+      },
+      "hardware_accessed": false,
+      "firmware_host_ci": 43845372268,
+      "firmware_target_ci": 43845372157,
+      "firmware_application_sha256": "013e162f9665b4e59e1d8c2674c8f7dc39d98ddef8e93f0c099211c575a79dad",
+      "prior_full_ui_export": {
+        "cps": 21,
+        "contacts_messages": 7,
+        "applets": 8,
+        "flasher": 18,
+        "ui_code_unchanged_in_final_builder_container_and_license_update": true
+      },
+      "bundled_cps_node": {
+        "passed": 122,
+        "skipped": 7,
+        "failed": 0,
+        "skips": "Canonical upstream/C parser prerequisites absent from standalone bundle"
+      }
     },
-    "simulated_serial_only": true,
-    "physical_browser_flash_qualified": false,
-    "exact_export_browser": {
-      "native_loader_fetch": 1,
-      "applets": 8
+    "static_link_preview_validation": {
+      "pass": true,
+      "static_no_javascript": true,
+      "pages": [
+        {
+          "page": "/",
+          "title": "DM32 Studio | P25, DMR & FM programming",
+          "image": "https://speexvocon.github.io/DM32-Studio/social/studio-v1.png",
+          "image_bytes": 100917
+        },
+        {
+          "page": "firmware.html",
+          "title": "DM32 Multimode v0.3.0-beta.1 | Web installer",
+          "image": "https://speexvocon.github.io/DM32-Studio/social/firmware-0.3.0-beta.1.png",
+          "image_bytes": 100207
+        }
+      ]
     },
-    "hardware_accessed": false,
-    "firmware_host_ci": 43845372268,
-    "firmware_target_ci": 43845372157,
-    "firmware_application_sha256": "013e162f9665b4e59e1d8c2674c8f7dc39d98ddef8e93f0c099211c575a79dad",
-    "prior_full_ui_export": {
-      "cps": 21,
-      "contacts_messages": 7,
-      "applets": 8,
-      "flasher": 18,
-      "ui_code_unchanged_in_final_builder_container_and_license_update": true
-    },
-    "bundled_cps_node": {
-      "passed": 122,
-      "skipped": 7,
-      "failed": 0,
-      "skips": "Canonical upstream/C parser prerequisites absent from standalone bundle"
-    }
+    "export_hash_and_unchanged_runtime_check": "passed; metadata/docs/artwork only, runtime unchanged apart from module cache keys",
+    "hardware_accessed": false
   }
 }
