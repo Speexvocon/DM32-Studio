@@ -4,11 +4,11 @@ import {
   modelVersion, upgradeModel, createScanList, clearChannels, moveChannel, bulkEditChannels, exportChannelsCsv, importChannelsCsv,
   CONTACT_COUNT, CONTACT_NAME_BYTES, exportContactsCsv, importContactsCsv,
   createTrunkSystem, clearTrunkSystem,
-} from './model.js?v=302bb39';
-import { CpsClient } from './transport.js?v=302bb39';
-import { AppletClient, APPLET_LIMITS, parseAppletPackage } from './applets.js?v=302bb39';
-import { History } from './vendor/undo.js?v=302bb39';
-import { findContact, channelAddress, MESSAGE_DRAFT_LIMIT, validateMessageDraft, exportMessageDraft, importMessageDraft, MESSAGE_FORMATS, MESSAGE_STATES, messageReplyDraft } from './call-tools.js?v=302bb39';
+} from './model.js?v=aded0a2';
+import { CpsClient } from './transport.js?v=aded0a2';
+import { AppletClient, APPLET_LIMITS, parseAppletPackage } from './applets.js?v=aded0a2';
+import { History } from './vendor/undo.js?v=aded0a2';
+import { findContact, channelAddress, MESSAGE_DRAFT_LIMIT, validateMessageDraft, exportMessageDraft, importMessageDraft, MESSAGE_FORMATS, MESSAGE_STATES, messageReplyDraft } from './call-tools.js?v=aded0a2';
 
 // The editor follows RadioFoundry's useful table / details / problems workflow.
 // This logical CPS transport is specific to the custom unified DM32 firmware.
@@ -811,13 +811,13 @@ function trunkView() {
       {kind:'primary',glyph:'plus',disabled:S.model.trunkSystems.every(Boolean)})),
     h('div',{class:'contact-table-wrap'},h('table',{class:'contact-table'},h('thead',{},h('tr',{},['System','Primary control · MHz','Mode',''].map(x=>h('th',{},x)))),
       h('tbody',{},S.model.trunkSystems.flatMap((s,i)=>s?[h('tr',{},h('td',{},`${i+1} · ${s.name}`),h('td',{class:'mono'},fmtFrequency(s.controls[0])),
-        h('td',{},s.mode==='rx-only'?'Receive only':'Experimental subscriber'),h('td',{},
+        h('td',{},s.mode==='rx-only'?'Receive only · no affiliation':'Experimental subscriber'),h('td',{},
           button('Edit',()=>editTrunkSystem(i),{small:true,'aria-label':`Edit system ${s.name}`}),
           button('Delete',async()=>{
             if(await confirmDialog('Delete system?',`Remove ${s.name}? Its selection and startup preference will also be cleared when selected.`,'Delete system',true))
               change('Delete trunking system',()=>clearTrunkSystem(S.model,i));
           },{small:true,kind:'quiet','aria-label':`Delete system ${s.name}`})))]:[])))),
-    h('p',{class:'settings-note'},'Up to 8 systems and 8 control channels per system. The radio tries the primary first, then alternates in order. Acquisition and control loss use 3-second windows; only matching site metadata locks a control. Calls and requests hold the current receiver.'),
+    h('p',{class:'settings-note'},'Up to 8 systems and 8 control channels per system. The radio tries the primary first, then alternates in order. Only matching site metadata locks a control. Calls and requests hold the current receiver.'),
     h('p',{class:'settings-note'},'While attached and idle, OK opens Resume, Log out and stop, or Stop now. Logout is unconfirmed and falls back to a local stop. Experimental Phase 1 subscriber registration, affiliation, granted voice and following have passed lab tests; precise access-slot RF timing remains unqualified. Phase 2 and encrypted voice are unsupported.'));
 }
 
@@ -826,23 +826,26 @@ function editTrunkSystem(index) {
   const candidate=S.model.trunkSystems[index] ?? createTrunkSystem();
   editorDialog(S.model.trunkSystems[index]?'Edit trunking system':'Add trunking system',body=>{
     const name=input(candidate.name,null,{maxlength:12,'aria-label':'System name'});
-    const mode=select([['rx-only','Receive only'],['experimental','Experimental subscriber']],candidate.mode,null,{'aria-label':'System operating mode'});
+    const doNotAffiliate=input(null,null,{type:'checkbox',checked:candidate.mode==='rx-only',
+      'aria-label':'Do not affiliate (receive only)'});
     const hex=(key,width)=>input(candidate[key].toString(16).toUpperCase().padStart(width,'0'),null,{maxlength:width,'aria-label':key});
     const wacn=hex('wacn',5),systemId=hex('systemId',3),nac=hex('nac',3);
     const number=(key,max)=>input(candidate[key],null,{type:'number',min:0,max,step:1,'aria-label':key});
     const rfss=number('rfss',255),site=number('site',255),sourceId=number('sourceId',16777215),talkgroup=number('talkgroup',65535);
     const controls=h('textarea',{rows:8,spellcheck:false,'aria-label':'Control frequencies MHz'},candidate.controls.map(fmtFrequency).join('\n'));
-    body.append(h('div',{class:'field-grid'},field('Name',name,'1–12 printable ASCII characters.'),field('Operating mode',mode),
+    body.append(h('div',{class:'field-grid'},field('Name',name,'1–12 printable ASCII characters.'),
+      field('Do not affiliate (receive only)',doNotAffiliate,
+        'Listen and follow the selected talkgroup without registering, affiliating or transmitting. Clear this only for experimental subscriber operation.'),
       field('WACN · hex',wacn,'Exact identity; not a wildcard.'),field('System ID · hex',systemId),field('NAC · hex',nac),
       field('RFSS · decimal',rfss),field('Site · decimal',site),field('Radio ID override · decimal',sourceId,'0 inherits the shared radio ID.'),
       field('Selected talkgroup · decimal',talkgroup,'1–65535.'),field('Control channels · MHz',controls,'One frequency per line, primary first; up to 8 unique frequencies. Alternates must advertise the same exact site identity.',true)),
-      h('p',{class:'settings-note'},'Use exact network identifiers. Experimental subscriber mode requires a nonzero WACN and system ID; saving this draft does not qualify radio access.'));
-    return {name,mode,wacn,systemId,nac,rfss,site,sourceId,talkgroup,controls};
+      h('p',{class:'settings-note'},'Use exact network identifiers. When receive only is unchecked, experimental subscriber operation requires a nonzero WACN and system ID; saving this draft does not qualify radio access.'));
+    return {name,doNotAffiliate,wacn,systemId,nac,rfss,site,sourceId,talkgroup,controls};
   },c=>{
     const hex=(key,width)=>{if(!new RegExp(`^[0-9a-fA-F]{1,${width}}$`).test(c[key].value))throw new Error(`${key}: enter hexadecimal digits.`);return parseInt(c[key].value,16);};
     const decimal=key=>{if(!/^\d+$/.test(c[key].value))throw new Error(`${key}: enter a whole decimal number.`);return Number(c[key].value);};
     const test=clone(S.model);
-    test.trunkSystems[index]={name:c.name.value,mode:c.mode.value,wacn:hex('wacn',5),systemId:hex('systemId',3),nac:hex('nac',3),
+    test.trunkSystems[index]={name:c.name.value,mode:c.doNotAffiliate.checked?'rx-only':'experimental',wacn:hex('wacn',5),systemId:hex('systemId',3),nac:hex('nac',3),
       rfss:decimal('rfss'),site:decimal('site'),sourceId:decimal('sourceId'),talkgroup:decimal('talkgroup'),
       controls:c.controls.value.trim().split(/[\s,]+/).map(parseFrequency)};
     const issues=validateModel(test).filter(p=>p.path.startsWith('trunkSystems'));

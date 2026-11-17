@@ -54,7 +54,9 @@ New Studio drafts use V6, with eight named P25 trunking systems. Existing files
 and radio reads retain their actual schema until explicitly upgraded. The
 **Trunking** tab configures receive-only or experimental Phase 1 subscriber
 systems, control-channel alternatives, exact identities, radio ID/talkgroup and
-start-at-boot. See the [step-by-step trunking guide](TRUNKING.md). Registration,
+start-at-boot. Leave **Do not affiliate (receive only)** checked to follow calls
+without registration, affiliation or trunked transmission; new systems default
+to this setting. See the [step-by-step trunking guide](TRUNKING.md). Registration,
 affiliation, granted group voice and talkgroup following have worked in the lab;
 precise RF access-slot timing and broader system interoperability remain open.
 
@@ -82,15 +84,21 @@ source/packages are included. Kit generation is reproducible with
 
 - **Trunking** on V6 stores up to eight named P25 Phase 1 systems, each with a
   primary control and up to seven alternates, exact network/site identities,
-  an optional radio ID override and selected talkgroup. Choose receive only
-  or explicit experimental subscriber intent. Startup is off after migration;
+  an optional radio ID override and selected talkgroup. The **Do not affiliate
+  (receive only)** checkbox blocks registration, affiliation and trunked PTT
+  while allowing passive following. Uncheck it for experimental subscriber
+  operation. Startup is off after migration;
   selecting a system does not start it. The separate start-at-boot option is
   deliberate. Subscriber RF qualification, Phase 2 and encrypted voice are not
   implied by these settings. Complete JSON backups retain the system table;
   older radio uploads refuse the larger format before a transaction begins.
-  The radio tries the primary first, then alternates in order, with three-second
-  acquisition and control-loss windows. Only fresh metadata for the exact saved
-  site locks a candidate; this is recovery within that site, not roaming. Calls
+  The radio tries the primary first, then alternates in order. Empty channels
+  can be skipped after 450 ms; genuine P25 evidence extends the ordinary
+  three-second acquisition window up to 12 seconds. Valid control traffic keeps
+  a qualified lock alive, with a separate 30-second site/network identity limit.
+  Only fresh metadata for the exact saved site locks a candidate; this is
+  recovery within that site, not roaming. Receive-only systems retry receive
+  setup faults and recorder gaps without enabling subscriber operation. Calls
   and subscriber requests hold the current receiver. While attached and idle, OK offers
   Resume, Log out and stop, or Stop now. Logout is sent without a network
   acknowledgment and falls back to a local stop if the bounded attempt fails.
@@ -253,7 +261,7 @@ See [upstream provenance](UPSTREAM.md) and the
 has no program-flash, bootloader, calibration or raw-address commands. The
 separate message service can explicitly transmit reviewed text. The separate
 **Firmware** page uses the factory updater and a pinned RAM reader; see
-[browser installation](firmware-assets/302bb39/README.md). Its file and serial sessions do not
+[browser installation](firmware-assets/aded0a2/README.md). Its file and serial sessions do not
 share an open CPS programming connection. CLI installation and recovery tools
 remain available.
 
@@ -262,7 +270,7 @@ multimode firmware; support is planned. The Firmware page provides a separate
 **Backup / full dump only** mode so owners can save matching reads of the full
 1 MiB program and 16 MiB data flash, download a ZIP, and send it privately to the
 maintainer. No supported codec is needed to create this diagnostic dump, and no
-upload occurs. See [dump and sharing instructions](firmware-assets/302bb39/README.md#save-a-full-dump-to-send-privately).
+upload occurs. See [dump and sharing instructions](firmware-assets/aded0a2/README.md#save-a-full-dump-to-send-privately).
 
 ## Checks
 

@@ -12,10 +12,13 @@ one primary and seven alternate control frequencies for one exact site.
 3. Enter **WACN, System ID and NAC in hexadecimal**. Enter **RFSS, Site, radio ID
    override and selected talkgroup in decimal**. All network/site identities are
    exact matches: zero is a literal value, not a search wildcard.
-4. Choose **Receive only** for passive following, or **Experimental subscriber**
-   for registration, group affiliation and granted group voice. Subscriber mode
-   requires nonzero WACN and System ID. A zero radio ID override inherits the
-   shared ID from Radio settings; program your own valid ID there.
+4. Leave **Do not affiliate (receive only)** checked to listen and follow the
+   selected talkgroup without registering, affiliating or transmitting. It is
+   checked by default for new systems and blocks trunked PTT requests too.
+   Uncheck it for **Experimental subscriber** operation: registration, group
+   affiliation and granted group voice. Subscriber mode requires nonzero WACN
+   and System ID. A zero radio ID override inherits the shared ID from Radio
+   settings; that inheritance does not enable transmission in receive-only mode.
 5. Select the saved system. Enable **Start selected system at boot** if desired.
    Review and write the codeplug. Selecting/editing a system does not immediately
    start it from the browser.
@@ -25,9 +28,19 @@ one primary and seven alternate control frequencies for one exact site.
 The radio searches the primary and alternates, locks fresh matching site and
 network metadata, then registers and affiliates when subscriber mode is selected.
 It holds the receiver during requests and calls, follows accepted voice grants
-and returns to control afterward. The three-second acquisition window can skip
-an empty channel earlier when fresh input establishes no control evidence.
-Control loss causes reacquisition; the control list is not a roaming list.
+and returns to control afterward. Empty candidates can be skipped after 450 ms;
+the ordinary acquisition window is three seconds. Genuine P25 evidence allows
+up to 12 seconds to acquire the required matching site/network metadata and
+channel map. Valid control traffic keeps an established lock alive, while site
+and network identity must still be refreshed within 30 seconds. Brief sync by
+itself does not establish a lock. Control loss causes reacquisition; the control
+list is not a roaming list.
+
+Receive-only systems also recover from a recorder gap or failed receive setup.
+Recovery first retries the same candidate, then advances through its saved
+controls with bounded delays. Stopping the system, changing the selected system
+or programming a codeplug cancels pending retries. Recovery never registers,
+affiliates or enables PTT transmission.
 
 For outgoing subscriber calls hold PTT while waiting for a grant. Begin speaking
 when the red transmit light indicates the microphone call is active; release to

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // DAPP v1 validation and the firmware's bounded APP protocol. No native PCM TX.
-import {crc32} from './model.js?v=302bb39';
+import {crc32} from './model.js?v=aded0a2';
 
 export const APPLET_LIMITS = Object.freeze({slots:8, maxPackage:32768, chunkBytes:32,
   commandBytes:119, lineBytes:512});
