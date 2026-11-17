@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { crc32, decodePayload, recordCount, RECORD_BYTES } from './model.js?v=d5e2134';
-import { validateMessageDraft } from './call-tools.js?v=d5e2134';
+import { crc32, decodePayload, recordCount, RECORD_BYTES } from './model.js?v=caedb78';
+import { validateMessageDraft } from './call-tools.js?v=caedb78';
 
 const MAX_FRAME = 120;
 const encoder = new TextEncoder();
@@ -60,7 +60,7 @@ function snapshotOrigin(origin) {
   return { revision: origin.revision, crc: origin.crc };
 }
 
-/** Bounded logical CPS V1–V5 transport; schema and geometry are pinned for the connection. */
+/** Bounded logical CPS V1–V6 transport; schema and geometry are pinned for the connection. */
 export class CpsClient {
   constructor({ serial = globalThis.navigator?.serial, timeoutMs = 3000,
     onProgress = () => {} } = {}) {
@@ -73,6 +73,7 @@ export class CpsClient {
     this._origin = null;
     this._protocol = null;
     this._messageCapabilities = null;
+    this._appletMode = false;
     this._pending = [];
     this._loss = null;
     this._closing = null;
@@ -87,6 +88,7 @@ export class CpsClient {
   get connected() { return this._connected && !this._tainted; }
   get protocolVersion() { return this._protocol; }
   get messageCapabilities() { return this._messageCapabilities; }
+  get appletMode() { return this._appletMode; }
 
   _progress(phase, current, message) {
     // Presentation callbacks must never turn a confirmed radio commit into an error.
@@ -131,6 +133,7 @@ export class CpsClient {
 
   async _exchange(command) {
     this._assertConnected();
+    if (this._appletMode) throw failure('Stop the applet and return to programming before using codeplug or message commands.', 'APPLET_ACTIVE');
     if (!/^CPS (?:HELLO|LIVE|SERVICES|GET [0-9]+|BEGIN [0-9A-F]{8} [0-9]+|PUT [0-9A-F]{8} [0-9]+ [0-9A-F]{64}|COMMIT [0-9A-F]{8} [0-9A-F]{8}|ABORT [0-9A-F]{8}|MSG (?:HELLO|LIST [0-9]+|GET [0-9]+ [0-9]+|(?:READ|DELETE) [0-9]+|BEGIN [0-9]+ [12] [01] [0-9]+ [01] [012] [0-9]+|PUT [0-9]+ [0-9]+ [0-9A-F]{2,64}|(?:SEND|CANCEL) [0-9]+))$/.test(command)) {
       throw failure('Invalid logical CPS command.', 'COMMAND');
     }
@@ -188,7 +191,7 @@ export class CpsClient {
 
   async _hello() {
     const reply = await this._exchange('CPS HELLO');
-    const match = /^CPS HELLO DM32P25 ([12345]) (32|256) 2 ([0-9]+) ([0-9A-F]{8})$/.exec(reply);
+    const match = /^CPS HELLO DM32P25 ([123456]) (32|256) 2 ([0-9]+) ([0-9A-F]{8})$/.exec(reply);
     if (!match || Number(match[3]) > 0xFFFFFFFF || Number(match[2]) !== (Number(match[1]) >= 4 ? 256 : 32) || (this._protocol !== null && this._protocol !== Number(match[1]))) {
       throw this._unexpected('Wrong firmware identity, geometry or CPS protocol.');
     }
@@ -197,13 +200,14 @@ export class CpsClient {
   }
 
   /** Call directly from a user click; this deliberately never discovers or opens ports automatically. */
-  async connect({ messaging = false } = {}) {
+  async connect({ messaging = false, applets = false } = {}) {
     return this._run(async () => {
       if (!this.serial?.requestPort) throw failure('Web Serial is unavailable in this browser.', 'UNSUPPORTED');
       if (this._port || this._closing) throw failure('Disconnect the previous serial connection first.', 'IN_USE');
       this._origin = null;
       this._protocol = null;
       this._messageCapabilities = null;
+      this._appletMode = false;
       this._tainted = false;
       const generation = ++this._generation;
       try {
@@ -225,6 +229,10 @@ export class CpsClient {
         this._loss = { promise, reject };
         this.serial.addEventListener?.('disconnect', this._onDisconnect);
         this._connected = true;
+        if (applets) {
+          this._appletMode = true;
+          return { service: 'applets' };
+        }
         return messaging ? await this._messageHello() : await this._hello();
       } catch (error) {
         await this.disconnect();
@@ -240,6 +248,7 @@ export class CpsClient {
     this._origin = null;
     this._protocol = null;
     this._messageCapabilities = null;
+    this._appletMode = false;
     this._loss?.reject(failure('Disconnected. Reconnect and read the radio again.', 'DISCONNECTED'));
     this.serial?.removeEventListener?.('disconnect', this._onDisconnect);
     const reader = this._reader, writer = this._writer, port = this._port;
@@ -297,6 +306,46 @@ export class CpsClient {
   async resumeRadio() {
     return this._run(async () => {
       if (await this._exchange('CPS LIVE') !== 'CPS OK LIVE') throw this._unexpected('Unexpected radio resume acknowledgement.');
+    });
+  }
+
+  // APP service operations borrow this connection's existing reader/writer under
+  // the same arbiter as CPS. No second chooser, port or background reader exists.
+  async runAppletSession(operation) {
+    if (typeof operation !== 'function') throw new TypeError('An applet operation is required.');
+    return this._run(async () => {
+      this._assertConnected();
+      if (!this._appletMode) {
+        if (await this._exchange('CPS LIVE') !== 'CPS OK LIVE') throw this._unexpected('Unexpected radio resume acknowledgement.');
+        this._appletMode = true;
+      }
+      this._origin = null;
+      const generation = this._generation;
+      let active = true;
+      const current = () => {
+        this._assertConnected();
+        if (!active || generation !== this._generation) throw failure('This applet session has ended.', 'DISCONNECTED');
+      };
+      const session = {
+        read: async () => {
+          current();
+          return Promise.race([this._reader.read(), this._loss.promise]);
+        },
+        write: async bytes => {
+          current();
+          if (!(bytes instanceof Uint8Array) || bytes.length > 121) throw failure('Invalid applet command frame.', 'FRAME');
+          const command = String.fromCharCode(...bytes);
+          if (!/^APP (?:STATUS|STOP|STORE STATUS|(?:RUN|REMOVE) [1-8]|INSTALL (?:BEGIN [1-8] [0-9]+ [0-9]+|DATA [0-9]+ [0-9a-fA-F]{2,64}|COMMIT|ABORT))\r?\n$/.test(command)) {
+            throw failure('Unsupported applet management command.', 'COMMAND');
+          }
+          return Promise.race([this._writer.write(bytes.slice()), this._loss.promise]);
+        },
+        invalidate: error => { if (active && generation === this._generation) this._taint(error); },
+        // Only the APP client calls this after consuming a confirmed STOP reply.
+        release: () => { current(); this._appletMode = false; },
+      };
+      try { return await operation(session); }
+      finally { active = false; }
     });
   }
 

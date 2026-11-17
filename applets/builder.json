@@ -1,0 +1,18 @@
+{
+  "format": "dm32-applet-builder/1",
+  "package_format": "DAPP/1",
+  "compiler": "tools/dm32_applet.py",
+  "python_dependencies_offline": [],
+  "archive_sha256": "f98c4010c4e5ea36e4658c047e9fd15f308ccd3eaf68dbc4aa1c266f6026f894",
+  "files": {
+    "AGENT_GUIDE.md": "ef1ca1f277eabb77296afb3f78a3898b81b68e446339f0a57b7c37cc25fb6f99",
+    "LICENSE": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+    "README.md": "a1d4d05465f82bb97be90e978afea207ac0a3a361102f64136fd75b7024ad37b",
+    "examples/counter.dapp": "0ea257cf79c93dde0fa849f195e35c51d166e662ca781bd57caf90da1a392f5c",
+    "examples/counter.dappsrc": "8afd4b4d66efd7419e21cf55f579623c4d5efa3aea567dc251091c83f60391e5",
+    "examples/same-watch.dapp": "a937db43c5da62e0fcb4e43aaa139fcea6315d8d9ffad910ef5e62b07510098a",
+    "examples/same-watch.dappsrc": "153a5b8469735ba92bda972dffa881fb5aa87d2fe9a28465003a80a08daab081",
+    "tools/dm32-applet.py": "05050ca40fd67ea7375338c2b298c7d6c374e23920a1c674152328ee6d932cc2",
+    "tools/dm32_applet.py": "5b3ebbd459bd6d792308f96f71d35c852c9740f3e419a4195063187ef504a698"
+  }
+}

@@ -1,0 +1,15 @@
+# Installable NOAA SAME monitor. No RF transmission or channel-setting writes.
+name "SAME Watch"
+caps same serial display
+title "SAME monitor"
+print "Listening for NOAA SAME headers"
+same 162550000
+
+listen:
+await confirmed 60000 r0
+if r0 == 0 goto listen
+get r1 confirmed
+if r1 == 0 goto listen
+show same
+last
+goto listen

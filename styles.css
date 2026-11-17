@@ -41,3 +41,29 @@ dialog{border:0;border-radius:14px;padding:0;box-shadow:0 24px 100px #102b4350;m
 .message-card-title { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .message-meta { font-size:11px; color:var(--muted); overflow-wrap:anywhere; }
 .message-body { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.6; }
+
+.applet-layout { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr); gap:20px; align-items:start; }
+.applet-layout > .panel { min-width:0; }
+.applet-layout .panel-heading { gap:12px; flex-wrap:wrap; }
+.applet-runtime { display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding-bottom:18px; }
+.applet-runtime strong { font-size:13px; }
+.applet-runtime button { margin-left:auto; }
+.applet-slots { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:16px 0; }
+.applet-slot { min-width:0; border:1px dashed var(--line); border-radius:10px; padding:16px; background:#fbfcfd; }
+.applet-slot.occupied { border-style:solid; background:white; }
+.applet-slot-heading { display:flex; flex-direction:column; align-items:flex-start; gap:10px; }
+.applet-slot-heading strong { font-size:14px; overflow-wrap:anywhere; }
+.applet-slot .card-actions { display:flex; gap:8px; flex-wrap:wrap; padding-top:8px; }
+.applet-package { padding-top:22px; }
+.applet-package h3 { margin:14px 0 4px; overflow-wrap:anywhere; }
+.applet-package .field { margin:18px 0; }
+.applet-details { margin:18px 0; font-size:12px; }
+.applet-details > div { display:grid; grid-template-columns:86px minmax(0,1fr); gap:12px; padding:9px 0; border-bottom:1px solid var(--line); }
+.applet-details dt { color:var(--muted); }
+.applet-details dd { margin:0; overflow-wrap:anywhere; line-height:1.5; }
+.applet-help { border-top:1px solid var(--line); margin-top:24px; padding-top:12px; font-size:12px; line-height:1.65; }
+.applet-help a { display:block; width:fit-content; margin-top:10px; color:var(--accent); font-weight:600; }
+.applet-draft-note,.applet-console { grid-column:1 / -1; }
+.applet-output { margin:0; padding:20px; background:#142d42; color:#dceaf1; font:11px/1.7 ui-monospace,Consolas,monospace; white-space:pre-wrap; overflow-wrap:anywhere; max-height:280px; overflow:auto; border-radius:0 0 12px 12px; }
+@media(max-width:1100px) { .applet-layout { grid-template-columns:1fr; } }
+@media(max-width:520px) { .applet-slots { grid-template-columns:1fr; } .applet-runtime button { margin-left:0; } }

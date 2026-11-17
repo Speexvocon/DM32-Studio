@@ -3,10 +3,12 @@ import {
   exportFile, importFile, crc32, setChannelMode, POWER_LEVELS, BUTTON_ACTIONS,
   modelVersion, upgradeModel, createScanList, clearChannels, moveChannel, bulkEditChannels, exportChannelsCsv, importChannelsCsv,
   CONTACT_COUNT, CONTACT_NAME_BYTES, exportContactsCsv, importContactsCsv,
-} from './model.js?v=d5e2134';
-import { CpsClient } from './transport.js?v=d5e2134';
-import { History } from './vendor/undo.js?v=d5e2134';
-import { findContact, channelAddress, MESSAGE_DRAFT_LIMIT, validateMessageDraft, exportMessageDraft, importMessageDraft, MESSAGE_FORMATS, MESSAGE_STATES, messageReplyDraft } from './call-tools.js?v=d5e2134';
+  createTrunkSystem, clearTrunkSystem,
+} from './model.js?v=caedb78';
+import { CpsClient } from './transport.js?v=caedb78';
+import { AppletClient, APPLET_LIMITS, parseAppletPackage } from './applets.js?v=caedb78';
+import { History } from './vendor/undo.js?v=caedb78';
+import { findContact, channelAddress, MESSAGE_DRAFT_LIMIT, validateMessageDraft, exportMessageDraft, importMessageDraft, MESSAGE_FORMATS, MESSAGE_STATES, messageReplyDraft } from './call-tools.js?v=caedb78';
 
 // The editor follows RadioFoundry's useful table / details / problems workflow.
 // This logical CPS transport is specific to the custom unified DM32 firmware.
@@ -36,6 +38,7 @@ const paths = {
   info: 'M12 11v6 M12 7v1 M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
   contacts: 'M4 4h16v17H4z M8 2v4 M16 2v4 M15 11a3 3 0 1 1-6 0 3 3 0 0 1 6 0 M7 19v-1a5 5 0 0 1 10 0v1',
   message: 'M3 4h18v13H9l-6 4V4z M7 8h10 M7 12h7',
+  applets: 'M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h6v6h-6z',
 };
 
 function icon(name, size = 18) {
@@ -96,21 +99,27 @@ function check(label, checked, onChange, attrs = {}) {
     h('input', { type: 'checkbox', checked, disabled: S.busy, onchange: onChange, ...attrs }), label);
 }
 const S = {
-  model: createDefaultModel(), clean: '', name: 'Untitled codeplug', tab: 'channels',
+  model: createDefaultModel(6), clean: '', name: 'Untitled codeplug', tab: 'channels',
   selected: new Set(), search: '', mode: 'all', showEmpty: true,
   history: new History(), busy: false, operation: '', progress: 0,
   client: null, baseline: null, notice: null, source: 'new', fileOrigin: null,
   contactSearch: '', contactProtocol: 'all', contactType: 'all',
   messageDraft: { protocol: 'P25', type: 'unit', destinationId: 1, text: '' },
   messageFormat: 0, messageAck: false, mailbox: [], messageCapabilities: null, messageFolder: 'inbox',
+  appletClient: null, appletInventory: null, appletStatus: null, appletSupport: 'unknown',
+  appletPackage: null, appletSlot: 1, appletOutput: [],
 };
 S.clean = signature(S.model);
 const root = document.getElementById('app');
 const fileInput = h('input', { type: 'file', accept: '.json,.dm32,.dm32.json',
   style: 'display:none', 'aria-label': 'Open codeplug file', onchange: openSelectedFile });
 document.body.append(fileInput);
+const appletFileInput = h('input', { type: 'file', accept: '.dapp', style: 'display:none',
+  'aria-label': 'Open applet package', onchange: openAppletPackage });
+document.body.append(appletFileInput);
 
 function connected() { return Boolean(S.client?.connected); }
+function programmingReady() { return connected() && !S.client?.appletMode; }
 function dirty() { return signature(S.model) !== S.clean; }
 function problems() {
   try { return validateModel(S.model); }
@@ -192,18 +201,18 @@ function render() {
       h('div', { class: 'connection-main' },
         h('div', { class: `connection-icon ${isConnected ? 'connected' : ''}` }, icon('plug', 21)),
         h('div', {}, h('div', { class: 'connection-title' },
-          isConnected ? 'DM32 connected' : S.client ? 'Connection needs resetting' : 'Work on your codeplug',
+          isConnected ? S.client.appletMode ? 'DM32 applet connection' : 'DM32 connected' : S.client ? 'Connection needs resetting' : 'Work on your codeplug',
           badge(isConnected ? 'CONNECTED' : S.client ? 'RECONNECT' : 'OFFLINE', isConnected ? '' : S.client ? 'warn' : 'neutral')),
         h('div', { class: 'connection-detail' },
-          isConnected ? S.baseline ? `Radio revision ${S.baseline.revision} · ${radioChanged() ? 'Changes are ready to review' : 'Working copy matches the radio'}` :
+          isConnected ? S.client.appletMode ? 'Applet control owns this connection. Stop & return to programming before reading or writing a codeplug.' : S.baseline ? `Radio revision ${S.baseline.revision} · ${radioChanged() ? 'Changes are ready to review' : 'Working copy matches the radio'}` :
             'Read the radio once to enable reviewed uploads.' : S.client ? 'Disconnect to close the uncertain port, then reconnect and read the radio.' :
             'Edit and save locally. Connect your radio when you are ready.'))),
       h('div', { class: 'radio-actions' },
-        button(S.client ? 'Disconnect' : 'Connect radio', S.client ? disconnectRadio : connectRadio,
+        button(S.client ? 'Disconnect' : S.tab === 'applets' ? 'Connect for applets' : 'Connect radio', S.client ? disconnectRadio : connectRadio,
           { kind: S.client ? '' : 'dark', glyph: 'plug' }),
-        button('Read radio', readRadio, { glyph: 'download', disabled: !isConnected }),
+        button('Read radio', readRadio, { glyph: 'download', disabled: !programmingReady() }),
         button('Review & write', reviewWrite, { kind: 'primary', glyph: 'upload',
-          disabled: !isConnected || !S.baseline || Boolean(issues.length) || !radioChanged(),
+          disabled: !programmingReady() || !S.baseline || Boolean(issues.length) || !radioChanged(),
           title: !S.baseline ? 'Read this connected radio before writing.' : 'Review changes before writing to the radio.' }))),
     S.busy ? h('div', { class: 'progress-box', role: 'status', 'aria-live': 'polite' },
       h('div', { class: 'progress-label', id: 'progress-label' }, S.operation),
@@ -219,8 +228,10 @@ function render() {
     h('nav', { class: 'tab-list', role: 'tablist', 'aria-label': 'Codeplug sections' },
       [['channels', 'Channels', 'channels', occupied()], ['vfos', 'Frequency A / B', 'vfo', 2],
         ...(expanded() ? [['zones', 'Zones', 'folder', 16]] : []), ['scan', 'Scan lists', 'scan', expanded() ? 16 : 4], ['settings', 'Radio settings', 'settings', null],
+        ['trunk', 'Trunking', 'radio', (S.model.trunkSystems ?? []).filter(Boolean).length],
         ['contacts', 'Contacts', 'contacts', contactCount()], ['messages', 'Messages', 'message', null],
         ['functions', 'Functions', 'radio', null],
+        ['applets', 'Applets', 'applets', S.appletInventory?.slots.filter(slot => slot.present).length ?? null],
         ['problems', 'Problems', issues.length ? 'alert' : 'check', issues.length]].map(([id, title, glyph, count]) =>
         h('button', { type: 'button', class: `tab-button ${S.tab === id ? 'active' : ''}`, role: 'tab',
           'aria-selected': String(S.tab === id), 'aria-controls': 'main-view', disabled: S.busy,
@@ -243,7 +254,9 @@ function renderContent(issues = problems()) {
     settings: ['Radio settings', 'Digital radio identity, microphone gain and starting mode for each side.'],
     functions: ['Functions', 'Transmit controls, programmable buttons, FM broadcast and display behavior.'],
     contacts: ['Contacts', 'Name individual radios and talkgroups for P25 and DMR. Names appear on received calls and last heard.'],
+    trunk: ['P25 trunking systems', 'Save a named Phase 1 system, its control channels and your radio identity.'],
     messages: ['Messages', 'Compose addressed text and manage the radio’s inbox and outbox.'],
+    applets: ['Applets', 'Choose a .dapp package, refresh installed slots, then review installation. Starting it is a separate action.'],
     problems: ['Codeplug checks', 'Resolve these settings before saving or writing. Checks never transmit or change the radio.'],
   };
   const [title, subtitle] = labels[S.tab];
@@ -268,10 +281,185 @@ function renderContent(issues = problems()) {
         'Read an existing configuration, add a channel, or explore the editor. Nothing is written automatically.'),
       h('div', { class: 'banner-actions' }, button('Load example', loadDemo, { small: true }))) : null,
     S.tab === 'channels' ? channelsView() : S.tab === 'vfos' ? vfoView() : S.tab === 'scan' ? scanView() : S.tab === 'zones' ? zonesView() :
-      S.tab === 'settings' ? settingsView() : S.tab === 'functions' ? functionsView() : S.tab === 'contacts' ? contactsView() :
-        S.tab === 'messages' ? messagesView() : problemsView(issues),
+      S.tab === 'settings' ? settingsView() : S.tab === 'functions' ? functionsView() : S.tab === 'contacts' ? contactsView() : S.tab === 'trunk' ? trunkView() :
+        S.tab === 'messages' ? messagesView() : S.tab === 'applets' ? appletsView() : problemsView(issues),
     h('div', { class: 'footer-hint' }, h('span', {}, `Custom DM32 firmware only · ${S.model.channels.length} memories · ${expanded() ? '16 zones · 16 scan lists' : '4 scan lists · legacy'}`),
-      h('span', {}, 'Codeplug writes require review. Text is transmitted only after Send message.')));
+      h('span', {}, S.tab === 'applets' ? 'Choosing a package is local. Installation and applet controls require your review.' : 'Codeplug writes require review. Text is transmitted only after Send message.')));
+}
+
+const appletPermissionLabels = { same: 'SAME weather-alert reception', serial: 'Serial text output',
+  display: 'Radio display', key: 'Keypad input' };
+function appletPermissions(capabilities = []) {
+  return capabilities.length ? capabilities.map(name => appletPermissionLabels[name] || name).join(' · ') : 'No optional permissions';
+}
+function appletStatusText() {
+  const status = S.appletStatus;
+  if (!status) return 'Status not read';
+  if (status.running) return `${status.stateName === 'waiting' ? 'Waiting' : 'Running'} · Slot ${status.slot}`;
+  if (status.stateName === 'fault') return `Applet fault · Slot ${status.slot}`;
+  if (status.stateName === 'finished') return `Finished · Slot ${status.slot}`;
+  return status.operation ? 'Applet operation in progress' : 'No applet running';
+}
+function appletPackageDetails(pkg) {
+  return h('dl', { class: 'applet-details' },
+    h('div', {}, h('dt', {}, 'Package'), h('dd', {}, `${pkg.name} · DAPP V${pkg.version}`)),
+    h('div', {}, h('dt', {}, 'Size'), h('dd', {}, `${pkg.size.toLocaleString()} bytes`)),
+    h('div', {}, h('dt', {}, 'Permissions'), h('dd', {}, appletPermissions(pkg.capabilities))));
+}
+function appletsView() {
+  const inventory = S.appletInventory, status = S.appletStatus, pkg = S.appletPackage;
+  const ready = connected() && inventory && status && S.appletSupport === 'supported';
+  const occupied = Boolean(status?.running || status?.operation);
+  const writable = ready && !inventory.readOnly && !occupied;
+  const slots = inventory?.slots ?? Array.from({ length: APPLET_LIMITS.slots }, (_, index) => ({ slot: index + 1, present: false }));
+  return h('div', { class: 'applet-layout' },
+    h('section', { class: 'panel applet-inventory' },
+      h('div', { class: 'panel-heading' }, h('div', {}, h('h2', {}, 'On your radio'),
+        h('p', {}, inventory ? `${inventory.slots.filter(slot => slot.present).length} of ${inventory.slotCount} slots used` : status?.running ? 'Stop the running applet to read installed slots.' : 'Connect, then refresh to see installed applets.')),
+        button('Refresh applets', refreshApplets, { glyph: 'refresh', disabled: !connected() })),
+      h('div', { class: 'panel-body' },
+        h('div', { class: 'applet-runtime', role: 'status' },
+          badge(S.appletSupport === 'unsupported' ? 'UPDATE REQUIRED' : status?.running ? 'APPLET ACTIVE' : inventory ? 'RADIO CHECKED' : 'NOT READ',
+            S.appletSupport === 'unsupported' || status?.stateName === 'fault' ? 'warn' : 'neutral'),
+          h('strong', {}, appletStatusText()),
+          connected() && S.client.appletMode ? button('Stop & return to programming', stopApplet, { small: true }) : null),
+        S.appletSupport === 'unsupported' ? h('p', { class: 'settings-note' },
+          'This firmware does not provide the applet service. Update to an applet-capable DM32 firmware, then reconnect. Your local package and drafts are retained.') :
+          !connected() ? h('p', { class: 'section-intro' }, 'Choose Connect for applets to connect without opening a codeplug session.') :
+          occupied ? h('p', { class: 'section-intro' }, 'The applet service is active. Stop & return before installing, removing or starting another applet. Installed slots cannot be refreshed while an applet is running.') :
+          !inventory ? h('p', { class: 'section-intro' }, 'Refresh is an explicit read. Opening this tab does not send any radio command.') : null,
+        inventory?.readOnly ? h('div', { class: 'banner warning' }, 'The applet store is read-only. Installation and removal are unavailable; existing data has been preserved.') : null,
+        h('div', { class: 'applet-slots' }, slots.map(slot => h('article', { class: `applet-slot${slot.present ? ' occupied' : ''}`, 'data-applet-slot': slot.slot },
+          h('div', { class: 'applet-slot-heading' }, badge(`SLOT ${slot.slot}`, 'neutral'),
+            h('strong', {}, inventory ? slot.present ? slot.name || 'Installed applet' : 'Empty slot' : 'Not read')),
+          slot.present ? h('p', { class: 'small-text muted' }, `${slot.size.toLocaleString()} bytes · Revision ${slot.revision}`) : null,
+          slot.present ? h('div', { class: 'card-actions' },
+            button('Start', () => startApplet(slot), { small: true, disabled: !ready || occupied, 'aria-label': `Start applet in slot ${slot.slot}` }),
+            button('Remove', () => removeApplet(slot), { small: true, kind: 'danger', disabled: !writable, 'aria-label': `Remove applet from slot ${slot.slot}` })) : null))),
+        h('p', { class: 'settings-note' }, 'Starting an applet can pause normal reception or tune its receiver. Disconnecting the cable does not stop a running applet. Use Stop & return to restore normal operation.'))),
+    h('section', { class: 'panel' }, h('div', { class: 'panel-heading' }, h('div', {}, h('h2', {}, 'Install a package'), h('p', {}, 'Choose a compiled .dapp file from your computer.'))),
+      h('div', { class: 'panel-body' },
+        button(pkg ? 'Choose another package' : 'Choose .dapp package', () => appletFileInput.click(), { glyph: 'folder' }),
+        pkg ? h('div', { class: 'applet-package', 'data-package-valid': 'true' }, badge('PACKAGE CHECKED'),
+          h('h3', {}, pkg.name), h('p', { class: 'small-text muted' }, pkg.fileName), appletPackageDetails(pkg),
+          field('Install into', select(slots.map(slot => [slot.slot, `Slot ${slot.slot}${inventory ? slot.present ? ` · Replace ${slot.name || 'installed applet'}` : ' · Empty' : ''}`]),
+            S.appletSlot, event => { S.appletSlot = Number(event.target.value); render(); }, { 'aria-label': 'Applet install slot' })),
+          button('Review installation', reviewAppletInstall, { kind: 'primary', glyph: 'upload', disabled: !writable })) :
+          h('p', { class: 'settings-note' }, `Package checks run locally, including format, permissions, instructions and checksums. Maximum ${APPLET_LIMITS.maxPackage.toLocaleString()} bytes. No radio command is sent when you choose a file.`),
+        h('div', { class: 'applet-help' }, h('h3', {}, 'Make your own applet'),
+          h('p', {}, 'Give the builder guide to your coding assistant, compile the source, then open the resulting .dapp here.'),
+          h('a', { href: './applets/AGENT_GUIDE.md', download: 'DM32-applet-builder-guide.md' }, 'Download AI builder guide'),
+          h('a', { href: './applets/applet-builder.zip', download: 'DM32-applet-builder.zip' }, 'Download offline builder kit'),
+          h('a', { href: './applets/examples/counter.dapp', download: 'counter.dapp' }, 'Download Counter applet'),
+          h('a', { href: './applets/examples/same-watch.dapp', download: 'same-watch.dapp' }, 'Download SAME Watch applet'),
+          h('a', { href: './applets/README.md', target: '_blank', rel: 'noopener' }, 'Instructions & sample applets')))),
+    (dirty() || S.messageDraft.text) ? h('div', { class: 'banner applet-draft-note' }, icon('save', 18),
+      'Your codeplug edits and message draft stay in this browser while you manage applets. Save a local file before closing the page.') : null,
+    S.appletOutput.length ? h('section', { class: 'panel applet-console' }, h('div', { class: 'panel-heading' }, h('h2', {}, 'Applet output'),
+      button('Clear output', () => { S.appletOutput = []; render(); }, { small: true })),
+      h('pre', { class: 'applet-output', 'aria-label': 'Applet serial output' }, S.appletOutput.join('\n'))) : null);
+}
+function clearAppletConnection() {
+  S.appletClient = S.appletInventory = S.appletStatus = null;
+  S.appletSupport = 'unknown'; S.appletOutput = [];
+}
+function appletService() {
+  if (!connected()) throw new Error('Connect the radio before using applet controls.');
+  if (!S.appletClient) {
+    const client = S.client;
+    S.appletClient = new AppletClient({ runSession: fn => client.runAppletSession(fn), onProgress,
+      onOutput: line => { if (S.client !== client) return; S.appletOutput.push(String(line)); S.appletOutput = S.appletOutput.slice(-40); } });
+  }
+  return S.appletClient;
+}
+async function appletOperation(label, operation) {
+  if (S.busy || !connected()) return;
+  S.baseline = null; // The applet bridge relinquishes the codeplug session.
+  setBusy(true, label);
+  try { await operation(appletService()); }
+  catch (error) {
+    if (error.code === 'UNSUPPORTED') S.appletSupport = 'unsupported';
+    if (['UNSUPPORTED', 'NOT_CONNECTED', 'DISCONNECTED', 'TIMEOUT', 'FRAME', 'PROTOCOL', 'UNCERTAIN'].includes(error.code)) {
+      S.appletInventory = S.appletStatus = null;
+    }
+    S.notice = { message: `Applet action stopped: ${error.message || error} Your local codeplug and package are retained.`, error: true };
+  } finally { setBusy(false); }
+}
+async function readAppletState(service) {
+  const first = !S.appletInventory;
+  const status = await service.status();
+  S.appletStatus = status; S.appletSupport = 'supported';
+  // The radio refuses catalogue access while a VM/flash operation owns storage.
+  if (status.running || status.operation) return;
+  const inventory = await service.list();
+  S.appletInventory = inventory;
+  if (first) S.appletSlot = inventory.slots.find(slot => !slot.present)?.slot ?? 1;
+}
+async function refreshApplets() {
+  await appletOperation('Reading applet inventory and status…', async service => {
+    await readAppletState(service);
+    S.notice = { message: S.appletStatus.running || S.appletStatus.operation ? 'Applet status read. Stop & return before refreshing installed slots or programming.' : 'Applet inventory and status refreshed. Use Stop & return to programming before reading or writing your codeplug.', error: false };
+  });
+}
+async function openAppletPackage(event) {
+  const file = event.target.files?.[0]; appletFileInput.value = '';
+  if (!file || S.busy) return;
+  S.appletPackage = null;
+  try {
+    if (file.size > APPLET_LIMITS.maxPackage) throw new Error(`Applet packages must be at most ${APPLET_LIMITS.maxPackage.toLocaleString()} bytes.`);
+    const pkg = parseAppletPackage(new Uint8Array(await file.arrayBuffer()));
+    S.appletPackage = { ...pkg, fileName: file.name };
+    say(`“${pkg.name}” checked locally. Review its permissions and choose an installation slot.`);
+  } catch (error) { say(`Could not open applet package: ${error.message || error}`, true); }
+}
+function appletReviewStillCurrent(client, inventory) {
+  if (S.busy || !connected() || client !== S.client || inventory !== S.appletInventory) {
+    say('The radio connection or inventory changed. Refresh applets and review the action again.', true); return false;
+  }
+  return true;
+}
+async function reviewAppletInstall() {
+  if (S.busy || !connected() || !S.appletPackage || !S.appletInventory || S.appletInventory.readOnly) return;
+  const client = S.client, inventory = S.appletInventory, pkg = S.appletPackage, slot = S.appletSlot;
+  const existing = inventory.slots.find(item => item.slot === slot);
+  const text = existing?.present ? `Replace “${existing.name || 'installed applet'}” in slot ${slot} with “${pkg.name}”?` : `Install “${pkg.name}” into empty slot ${slot}?`;
+  if (!await confirmDialog('Review applet installation', text, existing?.present ? 'Replace applet' : 'Install applet', Boolean(existing?.present),
+    h('div', {}, appletPackageDetails(pkg), h('p', { class: 'dialog-subtle' }, 'Installation stores the package without starting it. Keep the cable connected until the install is confirmed.')))) return;
+  if (!appletReviewStillCurrent(client, inventory) || S.appletPackage !== pkg) return;
+  await appletOperation('Installing and checking the applet…', async service => {
+    await service.install(slot, pkg.data); await readAppletState(service);
+    S.notice = { message: `“${pkg.name}” installed in slot ${slot}. It has not been started.`, error: false };
+  });
+}
+async function startApplet(slot) {
+  if (S.busy || !connected() || !slot.present) return;
+  const client = S.client, inventory = S.appletInventory;
+  if (!await confirmDialog('Start this applet?', `Start “${slot.name || 'installed applet'}” in slot ${slot.slot}? It can pause normal reception and use the receiver, display or keypad permitted by its package.`, 'Start applet')) return;
+  if (!appletReviewStillCurrent(client, inventory)) return;
+  await appletOperation('Starting the applet…', async service => {
+    await service.run(slot.slot); S.appletStatus = await service.status();
+    S.notice = { message: `Slot ${slot.slot} started. Use Stop & return to programming when finished.`, error: false };
+  });
+}
+async function removeApplet(slot) {
+  if (S.busy || !connected() || !slot.present || S.appletInventory?.readOnly) return;
+  const client = S.client, inventory = S.appletInventory;
+  if (!await confirmDialog('Remove this applet?', `Remove “${slot.name || 'installed applet'}” from slot ${slot.slot}? Your channel memories and local drafts are retained.`, 'Remove applet', true)) return;
+  if (!appletReviewStillCurrent(client, inventory)) return;
+  await appletOperation('Removing the applet…', async service => {
+    await service.remove(slot.slot); await readAppletState(service);
+    S.notice = { message: `Applet removed from slot ${slot.slot}.`, error: false };
+  });
+}
+async function stopApplet() {
+  if (S.busy || !connected()) return;
+  const client = S.client;
+  if (!await confirmDialog('Return to programming?', 'Stop the current applet, restore normal radio operation and release applet control of the cable. Your codeplug edits and message draft stay here.', 'Stop & return')) return;
+  if (S.busy || !connected() || S.client !== client) return;
+  await appletOperation('Stopping applet control…', async service => {
+    await service.stop(); S.appletStatus = null;
+    S.notice = { message: 'Applet stopped and normal radio operation restored. Read the radio before the next codeplug write.', error: false };
+  });
 }
 
 function channelsView() {
@@ -603,6 +791,66 @@ function renderContactRows() {
   document.getElementById('contact-count').textContent = `${contactCount()} of ${CONTACT_COUNT} contacts used · ${entries.length} shown`;
 }
 
+function trunkView() {
+  if(modelVersion(S.model)<6)return h('div',{class:'banner'},
+    'Named trunking systems require V6 firmware and codeplug format. Upgrade this local draft while retaining all channels, contacts and lists.',
+    button('Upgrade codeplug',upgradeDraft,{small:true}));
+  const settings=S.model.settings;
+  const choose=event=>change('Select trunking system',()=>{
+    settings.trunkSystem=Number(event.target.value);if(!settings.trunkSystem)settings.trunkStartAtBoot=false;
+  });
+  return h('div',{},
+    h('p',{class:'settings-note'},h('a',{href:'./TRUNKING.md',target:'_blank',rel:'noopener'},'Trunking setup & operating guide')),
+    settingPanel('Selected system','Selecting a system does not start reception or transmit. Use the radio to start or stop trunking.',
+      field('System',select([[0,'Off'],...S.model.trunkSystems.flatMap((s,i)=>s?[[i+1,`${i+1} · ${s.name}`]]:[])],settings.trunkSystem,choose)),
+      field('Start selected system at boot',input(settings.trunkStartAtBoot,event=>change('Change trunking startup',()=>{
+        settings.trunkStartAtBoot=event.target.checked;
+      }),{type:'checkbox',checked:settings.trunkStartAtBoot,disabled:!settings.trunkSystem}),
+      'Optional. Normal boot and PTT-release checks still apply.')),
+    h('div',{class:'csv-actions'},button('Add system',()=>editTrunkSystem(S.model.trunkSystems.findIndex(s=>!s)),
+      {kind:'primary',glyph:'plus',disabled:S.model.trunkSystems.every(Boolean)})),
+    h('div',{class:'contact-table-wrap'},h('table',{class:'contact-table'},h('thead',{},h('tr',{},['System','Primary control · MHz','Mode',''].map(x=>h('th',{},x)))),
+      h('tbody',{},S.model.trunkSystems.flatMap((s,i)=>s?[h('tr',{},h('td',{},`${i+1} · ${s.name}`),h('td',{class:'mono'},fmtFrequency(s.controls[0])),
+        h('td',{},s.mode==='rx-only'?'Receive only':'Experimental subscriber'),h('td',{},
+          button('Edit',()=>editTrunkSystem(i),{small:true,'aria-label':`Edit system ${s.name}`}),
+          button('Delete',async()=>{
+            if(await confirmDialog('Delete system?',`Remove ${s.name}? Its selection and startup preference will also be cleared when selected.`,'Delete system',true))
+              change('Delete trunking system',()=>clearTrunkSystem(S.model,i));
+          },{small:true,kind:'quiet','aria-label':`Delete system ${s.name}`})))]:[])))),
+    h('p',{class:'settings-note'},'Up to 8 systems and 8 control channels per system. The radio tries the primary first, then alternates in order. Acquisition and control loss use 3-second windows; only matching site metadata locks a control. Calls and requests hold the current receiver.'),
+    h('p',{class:'settings-note'},'While attached and idle, OK opens Resume, Log out and stop, or Stop now. Logout is unconfirmed and falls back to a local stop. Experimental Phase 1 subscriber registration, affiliation, granted voice and following have passed lab tests; precise access-slot RF timing remains unqualified. Phase 2 and encrypted voice are unsupported.'));
+}
+
+function editTrunkSystem(index) {
+  if(index<0 || S.busy || modelVersion(S.model)<6)return;
+  const candidate=S.model.trunkSystems[index] ?? createTrunkSystem();
+  editorDialog(S.model.trunkSystems[index]?'Edit trunking system':'Add trunking system',body=>{
+    const name=input(candidate.name,null,{maxlength:12,'aria-label':'System name'});
+    const mode=select([['rx-only','Receive only'],['experimental','Experimental subscriber']],candidate.mode,null,{'aria-label':'System operating mode'});
+    const hex=(key,width)=>input(candidate[key].toString(16).toUpperCase().padStart(width,'0'),null,{maxlength:width,'aria-label':key});
+    const wacn=hex('wacn',5),systemId=hex('systemId',3),nac=hex('nac',3);
+    const number=(key,max)=>input(candidate[key],null,{type:'number',min:0,max,step:1,'aria-label':key});
+    const rfss=number('rfss',255),site=number('site',255),sourceId=number('sourceId',16777215),talkgroup=number('talkgroup',65535);
+    const controls=h('textarea',{rows:8,spellcheck:false,'aria-label':'Control frequencies MHz'},candidate.controls.map(fmtFrequency).join('\n'));
+    body.append(h('div',{class:'field-grid'},field('Name',name,'1–12 printable ASCII characters.'),field('Operating mode',mode),
+      field('WACN · hex',wacn,'Exact identity; not a wildcard.'),field('System ID · hex',systemId),field('NAC · hex',nac),
+      field('RFSS · decimal',rfss),field('Site · decimal',site),field('Radio ID override · decimal',sourceId,'0 inherits the shared radio ID.'),
+      field('Selected talkgroup · decimal',talkgroup,'1–65535.'),field('Control channels · MHz',controls,'One frequency per line, primary first; up to 8 unique frequencies. Alternates must advertise the same exact site identity.',true)),
+      h('p',{class:'settings-note'},'Use exact network identifiers. Experimental subscriber mode requires a nonzero WACN and system ID; saving this draft does not qualify radio access.'));
+    return {name,mode,wacn,systemId,nac,rfss,site,sourceId,talkgroup,controls};
+  },c=>{
+    const hex=(key,width)=>{if(!new RegExp(`^[0-9a-fA-F]{1,${width}}$`).test(c[key].value))throw new Error(`${key}: enter hexadecimal digits.`);return parseInt(c[key].value,16);};
+    const decimal=key=>{if(!/^\d+$/.test(c[key].value))throw new Error(`${key}: enter a whole decimal number.`);return Number(c[key].value);};
+    const test=clone(S.model);
+    test.trunkSystems[index]={name:c.name.value,mode:c.mode.value,wacn:hex('wacn',5),systemId:hex('systemId',3),nac:hex('nac',3),
+      rfss:decimal('rfss'),site:decimal('site'),sourceId:decimal('sourceId'),talkgroup:decimal('talkgroup'),
+      controls:c.controls.value.trim().split(/[\s,]+/).map(parseFrequency)};
+    const issues=validateModel(test).filter(p=>p.path.startsWith('trunkSystems'));
+    if(issues.length)throw new Error(issues.map(p=>p.message).join(' '));
+    encodePayload(test);change('Edit trunking system',()=>{S.model=test;});
+  });
+}
+
 function editContact(index) {
   if (index < 0 || S.busy || !directoryEnabled()) return;
   const candidate = S.model.contacts[index] ?? { name: '', protocol: S.contactProtocol === 'all' ? 'P25' : S.contactProtocol, type: 'unit', id: 1 };
@@ -657,7 +905,7 @@ function importContactsDialog() {
 function messagesView() {
   const draft = S.messageDraft;
   const capability = S.messageCapabilities?.[draft.protocol];
-  const live = connected() && Boolean(S.messageCapabilities);
+  const live = programmingReady() && Boolean(S.messageCapabilities);
   const errors = h('div', { class: 'dialog-error', role: 'alert', hidden: true });
   const protocol = select(['P25', 'DMR'], draft.protocol, event => {
     draft.protocol = event.target.value;
@@ -694,7 +942,7 @@ function messagesView() {
   const rows = S.mailbox.filter(message => (message.state === 'RECEIVED') === (S.messageFolder === 'inbox'));
   const mailbox = h('section', { class: 'panel message-mailbox' },
     h('div', { class: 'panel-heading' }, h('div', {}, h('h2', {}, 'Radio mailbox'), h('p', {}, live ? `${S.mailbox.length} / ${S.messageCapabilities.capacity} slots · radio memory, cleared on restart` : 'Connect and refresh to read messages from the radio.')),
-      h('div', { class: 'card-actions' }, connected() ? button('Refresh messages', refreshMessages, { glyph: 'refresh' }) : button('Connect for messages', () => connectRadio(true), { glyph: 'plug' }),
+      h('div', { class: 'card-actions' }, connected() ? button('Refresh messages', refreshMessages, { glyph: 'refresh', disabled: !programmingReady() }) : button('Connect for messages', () => connectRadio(true), { glyph: 'plug' }),
         button('Save mailbox file', () => downloadText(JSON.stringify({ format: 'dm32-mailbox', version: 1, messages: S.mailbox }, null, 2) + '\n', 'DM32-mailbox.json', 'application/json'), { disabled: !S.mailbox.length, glyph: 'save' }))),
     h('div', { class: 'message-folders', role: 'group', 'aria-label': 'Message folders' },
       button(`Inbox (${S.mailbox.filter(message => message.state === 'RECEIVED').length})`, () => { S.messageFolder = 'inbox'; render(); }, { kind: S.messageFolder === 'inbox' ? 'primary' : '' }),
@@ -738,12 +986,12 @@ function messageCard(message) {
       S.messageDraft = messageReplyDraft(message); S.messageFormat = message.format; S.messageAck = false; render();
       root.querySelector('[aria-label="Message text"]')?.focus();
     }, { small: true }) : null,
-      incoming && message.unread ? button('Mark read', () => changeMessage('READ', message.id), { small: true }) : null,
-      button('Delete', () => changeMessage('DELETE', message.id), { small: true, disabled: ['QUEUED', 'SENDING'].includes(message.state) })));
+      incoming && message.unread ? button('Mark read', () => changeMessage('READ', message.id), { small: true, disabled: !programmingReady() }) : null,
+      button('Delete', () => changeMessage('DELETE', message.id), { small: true, disabled: !programmingReady() || ['QUEUED', 'SENDING'].includes(message.state) })));
 }
 
 async function refreshMessages() {
-  if (S.busy || !connected()) return;
+  if (S.busy || !programmingReady()) return;
   setBusy(true, 'Reading the radio mailbox…');
   try {
     const result = await S.client.messages();
@@ -754,7 +1002,7 @@ async function refreshMessages() {
 }
 
 async function changeMessage(action, id) {
-  if (S.busy || !connected()) return;
+  if (S.busy || !programmingReady()) return;
   if (action === 'DELETE' && !await confirmDialog('Delete radio message?', 'This removes the selected message from the radio mailbox.', 'Delete message', true)) return;
   setBusy(true, action === 'READ' ? 'Marking the message read…' : 'Deleting the message…');
   try { await S.client.messageAction(action, id); const result = await S.client.messages(); S.messageCapabilities = result.capabilities; S.mailbox = result.messages; }
@@ -767,8 +1015,9 @@ async function sendMessage(errors) {
   const acknowledgment = S.messageAck && draft.protocol === 'DMR' && draft.type === 'unit' && format !== 2;
   const issues = validateMessageDraft(draft);
   if (issues.length) { errors.hidden = false; errors.textContent = issues.join(' '); return; }
-  if (S.busy || !connected() || !await confirmDialog('Send text over the radio?',
+  if (S.busy || !programmingReady() || !await confirmDialog('Send text over the radio?',
     `${draft.protocol} ${MESSAGE_FORMATS[format]} to ${draft.type === 'unit' ? 'radio ID' : 'talkgroup'} ${draft.destinationId}: “${draft.text}”\nThe radio will transmit on its currently selected channel.`, 'Send message')) return;
+  if (S.busy || !programmingReady()) return;
   setBusy(true, 'Queuing the message…');
   let queued = null;
   try {
@@ -814,8 +1063,8 @@ function legacyScanView() {
 }
 
 async function upgradeDraft() {
-  if (!await confirmDialog('Upgrade codeplug?', 'Keep existing channels, settings, zones and scan lists, and add the 96-contact directory and individual P25 call settings. Legacy codeplugs also expand to 256 memories. Save a copy first if you still program older firmware. The new format requires matching firmware.', 'Upgrade to V5')) return;
-  change('Upgrade codeplug', () => { S.model = upgradeModel(S.model); });
+  if (!await confirmDialog('Upgrade codeplug?', 'Retain channels, contacts, settings, zones and scan lists, and add 8 named trunking systems. Trunking startup remains off. The V6 format requires matching firmware. Save a copy first if you still program older firmware.', 'Upgrade to V6')) return;
+  change('Upgrade codeplug', () => { S.model = upgradeModel(S.model,6); });
 }
 
 function channelChoices(p25 = false) {
@@ -1048,7 +1297,7 @@ async function openFirmwareTools() {
 }
 async function newFile() {
   if (!await canReplace()) return;
-  load(createDefaultModel(), 'Untitled codeplug', 'new');
+  load(createDefaultModel(6), 'Untitled codeplug', 'new');
 }
 async function loadDemo() {
   if (!await canReplace()) return;
@@ -1110,19 +1359,20 @@ async function connectRadio(messageOnly = false) {
   }
   // requestPort must remain in this explicit user action's call chain.
   const client = new CpsClient({ serial: navigator.serial, timeoutMs: 3000, onProgress });
-  S.client = client; S.baseline = null;
+  clearAppletConnection(); S.client = client; S.baseline = null;
   setBusy(true, 'Choose the programming cable…');
   try {
-    const messaging = messageOnly === true || S.tab === 'messages';
-    const identity = await client.connect({ messaging });
-    if (messaging) {
+    const applets = S.tab === 'applets', messaging = !applets && (messageOnly === true || S.tab === 'messages');
+    const identity = await client.connect({ messaging, applets });
+    if (applets) S.notice = { message: 'Connected for applets. Refresh applets to inspect inventory and status. Existing applets are not stopped by this connection.', error: false };
+    else if (messaging) {
       S.messageCapabilities = identity; S.mailbox = [];
       if (identity) { const result = await client.messages(); S.mailbox = result.messages; S.messageCapabilities = result.capabilities; }
       S.notice = { message: identity ? 'Connected for messaging; normal radio listening remains active.' : 'Connected; this firmware has no messaging service. Local drafts remain available.', error: false };
     } else S.notice = { message: `Connected to custom DM32 firmware${client.protocolVersion === 1 ? ' (P25/FM)' : ' (P25/DMR/FM)'}; revision ${identity.revision}. Read the radio to establish a safe upload baseline.`, error: false };
   } catch (error) {
     try { await client.disconnect(); } catch { /* The original connection error is the useful one. */ }
-    S.client = null;
+    S.client = null; clearAppletConnection();
     S.notice = { message: `Connection not established: ${error.message || error}`, error: true };
   } finally { setBusy(false); }
 }
@@ -1133,10 +1383,10 @@ async function disconnectRadio() {
   setBusy(true, 'Closing the radio connection…');
   try { if (client) await client.disconnect(); }
   catch (error) { S.notice = { message: `Connection closed with a serial error: ${error.message || error}`, error: true }; }
-  finally { S.client = null; S.messageCapabilities = null; S.mailbox = []; setBusy(false); }
+  finally { S.client = null; clearAppletConnection(); S.messageCapabilities = null; S.mailbox = []; setBusy(false); }
 }
 async function readRadio() {
-  if (S.busy || !connected() || !await canReplace()) return;
+  if (S.busy || !programmingReady() || !await canReplace() || !programmingReady()) return;
   S.baseline = null;
   setBusy(true, 'Reading the radio configuration…');
   try {
@@ -1216,6 +1466,11 @@ function diffItems(original, current) {
     if (signature(before ?? null) !== signature(after ?? null)) entries.push({ title: `Contact ${i + 1}`,
       details: [`Before: ${contactSummary(before)}`, `After: ${contactSummary(after)}`] });
   }
+  for(let i=0;i<(current.trunkSystems?.length ?? 0);i++) {
+    const before=original.trunkSystems?.[i],after=current.trunkSystems[i];
+    if(signature(before ?? null)!==signature(after ?? null))entries.push({title:`Trunking system ${i+1}`,
+      details:[`Before: ${before?JSON.stringify(before):'Unused'}`,`After: ${after?JSON.stringify(after):'Unused'}`]});
+  }
   if (modelVersion(original) !== modelVersion(current)) entries.unshift({title: 'Explicit codeplug upgrade',
     details: [`Format V${modelVersion(original)} → V${modelVersion(current)}`, '256 channels, 16 zones, 16 scan lists and 96 contact slots']});
   return entries;
@@ -1231,7 +1486,7 @@ function collectionSummary(table, item) {
   return `${item.name} · ${item.type === 'p25-tg' ? `TG SCAN · base CH${item.baseChannel} · TGs ${item.talkgroups.join(', ') || 'none'}` : `CH SCAN · ${channels}`} · Reply ${reply} · Dwell ${item.dwellMs} ms · Hold ${item.holdMs} ms`;
 }
 async function reviewWrite() {
-  if (S.busy || !connected() || !S.baseline || problems().length) return;
+  if (S.busy || !programmingReady() || !S.baseline || problems().length) return;
   const payload = encoded();
   if (!payload) return;
   const baseline = S.baseline;
@@ -1244,7 +1499,7 @@ async function reviewWrite() {
       item.details.map(detail => h('span', { class: 'diff-detail' }, detail))))),
     h('p', { class: 'dialog-subtle' }, 'Only the custom firmware’s logical channel settings are programmed. Calibration, firmware and bootloader are outside this interface.'));
   if (!await confirmDialog('Review radio changes', 'Your edits have not been sent yet.', 'Write to radio', false, body)) return;
-  if (S.busy || !connected() || S.baseline !== baseline) { say('The connection changed. Read the radio again before writing.', true); return; }
+  if (S.busy || !programmingReady() || S.baseline !== baseline) { say('The connection changed. Read the radio again before writing.', true); return; }
   setBusy(true, 'Writing and verifying the configuration…');
   try {
     const result = await S.client.write(payload, { revision: baseline.revision, crc: baseline.crc });
@@ -1265,13 +1520,13 @@ navigator.serial?.addEventListener('disconnect', () => {
   // device must not discard this radio's valid baseline.
   queueMicrotask(() => {
     if (!S.client || S.client.connected) return;
-    S.baseline = null;
+    S.baseline = null; clearAppletConnection();
     S.notice = { message: 'The radio was disconnected. Working edits are retained. Disconnect, reconnect and read the radio before writing again.', error: true };
     render();
   });
 });
 window.addEventListener('beforeunload', event => {
-  if (dirty() || S.busy) { event.preventDefault(); event.returnValue = ''; }
+  if (dirty() || S.messageDraft.text || S.busy) { event.preventDefault(); event.returnValue = ''; }
 });
 window.addEventListener('keydown', event => {
   if (S.busy || document.querySelector('dialog[open]') || /^(INPUT|SELECT|TEXTAREA)$/.test(event.target.tagName)) return;

@@ -2,7 +2,10 @@
 // Logical CPS V1 through V5. Legacy imports retain exact bytes until explicitly upgraded.
 
 export const RECORD_BYTES = 32;
-export const RECORD_COUNT = 483;
+export const RECORD_COUNT = 499;
+export const V5_RECORD_COUNT = 483;
+export const TRUNK_SYSTEM_COUNT = 8;
+export const TRUNK_CONTROL_COUNT = 8;
 export const V4_RECORD_COUNT = 387;
 export const CONTACT_COUNT = 96;
 export const CONTACT_NAME_BYTES = 24;
@@ -10,8 +13,8 @@ export const MEMORY_COUNT = 256;
 export const LEGACY_RECORD_COUNT = 35;
 export const ZONE_COUNT = 16;
 export const SCAN_COUNT = 16;
-export const modelVersion = model => model?.channels?.length === 256 ? Object.hasOwn(model, 'contacts') ? 5 : 4 : 3;
-export const recordCount = version => version >= 5 ? RECORD_COUNT : version === 4 ? V4_RECORD_COUNT : LEGACY_RECORD_COUNT;
+export const modelVersion = model => model?.channels?.length === 256 ? Object.hasOwn(model, 'trunkSystems') ? 6 : Object.hasOwn(model, 'contacts') ? 5 : 4 : 3;
+export const recordCount = version => version >= 6 ? RECORD_COUNT : version === 5 ? V5_RECORD_COUNT : version === 4 ? V4_RECORD_COUNT : LEGACY_RECORD_COUNT;
 export const FILTERS = Object.freeze(["NAC", "PROM", "NAC+TG"]);
 export const POWER_LEVELS = Object.freeze(["L−", "L", "L+", "L++", "M", "M+", "M++", "H−", "H"]);
 export const BUTTON_ACTIONS = Object.freeze(["Default", "None", "Frequency / Channel", "Switch A / B", "Scan", "Cycle TX power", "FM broadcast", "Radio status", "Keypad lock", "Last heard"]);
@@ -121,7 +124,7 @@ export function validateModel(model) {
     const errors = [];
     if (!object(model)) return [{ path: "", message: "Expected a configuration object" }];
     const version = modelVersion(model), expanded = version >= 4, memories = expanded ? 256 : 32;
-    ownKeys(model, expanded ? ["channels", "vfos", "settings", "zones", "scanLists", ...(version>=5 ? ["contacts"] : [])] : ["channels", "vfos", "settings"], "", errors);
+    ownKeys(model, expanded ? ["channels", "vfos", "settings", "zones", "scanLists", ...(version>=5 ? ["contacts"] : []), ...(version>=6 ? ["trunkSystems"] : [])] : ["channels", "vfos", "settings"], "", errors);
     for (const [key, count] of [["channels", memories], ["vfos", 2]]) {
         if (!Array.isArray(model[key]) || model[key].length !== count) {
             errors.push({ path: key, message: `Expected exactly ${count} slots` });
@@ -136,7 +139,7 @@ export function validateModel(model) {
         errors.push({ path: "settings", message: "Expected radio settings" });
         return errors;
     }
-    ownKeys(model.settings, expanded ? [...SETTINGS_KEYS, "zoneA", "zoneB"] : SETTINGS_KEYS, "settings", errors);
+    ownKeys(model.settings, expanded ? [...SETTINGS_KEYS, "zoneA", "zoneB", ...(version>=6 ? ["trunkSystem", "trunkStartAtBoot"] : [])] : SETTINGS_KEYS, "settings", errors);
     const ranges = {
         sourceId: [1, 0xffffff], micGainDb: [0, 42], screenSeconds: [0, 600], keypadSeconds: [0, 600],
         activeVfo: [0, 1], selectionA: [0, memories], selectionB: [0, memories], scanList: [0, expanded ? 15 : 3],
@@ -164,7 +167,46 @@ export function validateModel(model) {
     }
     if (expanded) checkCollections(model, errors);
     if (version>=5) checkContacts(model.contacts, errors);
+    if (version>=6) checkTrunkSystems(model, errors);
     return errors;
+}
+
+function checkTrunkSystems(model, errors) {
+    const fail=(path,message)=>errors.push({path,message});
+    if(!Array.isArray(model.trunkSystems) || model.trunkSystems.length!==8 || Object.keys(model.trunkSystems).length!==8
+        || Object.keys(model.trunkSystems).some((key,i)=>key!==String(i))) {
+        fail('trunkSystems','Expected exactly 8 trunking system slots');return;
+    }
+    model.trunkSystems.forEach((system,index)=>{
+        if(system===null)return;
+        const path=`trunkSystems[${index}]`;
+        if(!object(system)){fail(path,'Expected a system or null');return;}
+        ownKeys(system,['name','mode','wacn','systemId','nac','rfss','site','sourceId','talkgroup','controls'],path,errors);
+        if(typeof system.name!=='string' || !system.name.length || system.name.length>12 || /[^\x20-\x7e]/.test(system.name))fail(`${path}.name`,'Use 1–12 printable ASCII characters');
+        if(!['rx-only','experimental'].includes(system.mode))fail(`${path}.mode`,'Choose receive-only or experimental subscriber');
+        for(const [key,maximum] of [['wacn',0xfffff],['systemId',0xfff],['nac',0xfff],['rfss',255],['site',255],['sourceId',system.mode==='experimental'?0xfffffe:0xffffff]])
+            if(!integer(system[key],0,maximum))fail(`${path}.${key}`,`Use a whole number from 0 to ${maximum}`);
+        if(system.mode==='experimental' && (!system.wacn || !system.systemId))fail(path,'Experimental subscriber requires nonzero WACN and system ID');
+        if(!integer(system.talkgroup,1,65535))fail(`${path}.talkgroup`,'Use a talkgroup from 1 to 65535');
+        if(!Array.isArray(system.controls) || !integer(system.controls.length,1,8) || Object.keys(system.controls).length!==system.controls.length
+            || Object.keys(system.controls).some((key,i)=>key!==String(i))
+            || system.controls.some(hz=>!frequency(hz)) || new Set(system.controls).size!==system.controls.length)
+            fail(`${path}.controls`,'Enter 1–8 unique receive frequencies in the supported bands; primary first');
+    });
+    const selected=model.settings.trunkSystem;
+    if(!integer(selected,0,8))fail('settings.trunkSystem','Choose Off or a saved system');
+    else if(selected && !model.trunkSystems[selected-1])fail('settings.trunkSystem','Selected trunking system is empty');
+    if(typeof model.settings.trunkStartAtBoot!=='boolean' || model.settings.trunkStartAtBoot && !selected)
+        fail('settings.trunkStartAtBoot','Starting at boot requires a selected saved system');
+}
+
+export function createTrunkSystem(name='New system') {
+    return {name,mode:'rx-only',wacn:0,systemId:0,nac:0x293,rfss:0,site:0,sourceId:0,talkgroup:1,controls:[145700000]};
+}
+export function clearTrunkSystem(model,index) {
+    if(modelVersion(model)!==6 || !integer(index,0,7))throw new Error('Invalid trunking system slot');
+    model.trunkSystems[index]=null;
+    if(model.settings.trunkSystem===index+1){model.settings.trunkSystem=0;model.settings.trunkStartAtBoot=false;}
 }
 
 function checkContacts(contacts, errors) {
@@ -347,6 +389,17 @@ export function encodePayload(model) {
         output[offset+1]=contact.id&255;output[offset+2]=contact.id>>>8&255;output[offset+3]=contact.id>>>16;
         writeName(output,offset+4,contact.name);
     });
+    if(version>=6) {
+        output[offset+28]=settings.trunkSystem;output[offset+29]=settings.trunkStartAtBoot?1:0;
+        model.trunkSystems.forEach((system,i)=>{
+            if(!system)return;
+            const offset=(483+i*2)*32,data=new DataView(output.buffer,offset,64);
+            writeName(output,offset,system.name);output[offset+12]=system.mode==='experimental'?1:0;output[offset+13]=system.controls.length;
+            for(const [at,value] of [[14,system.wacn],[23,system.sourceId]])for(let n=0;n<3;n++)output[offset+at+n]=value>>>(8*n)&255;
+            data.setUint16(17,system.systemId,true);data.setUint16(19,system.nac,true);output[offset+21]=system.rfss;output[offset+22]=system.site;
+            data.setUint16(26,system.talkgroup,true);system.controls.forEach((hz,n)=>data.setUint32(32+4*n,hz,true));
+        });
+    }
     return output;
 }
 
@@ -401,13 +454,14 @@ function readChannel(input, index, version) {
 }
 
 /** Decode and validate every byte, including padding, unused records and selected references. */
-export function decodePayload(value, version = value?.length === RECORD_COUNT * 32 ? 5 : value?.length === V4_RECORD_COUNT * 32 ? 4 : 3) {
-    if (![1, 2, 3, 4, 5].includes(version)) throw new Error("Unsupported CPS payload version");
+export function decodePayload(value, version = value?.length === RECORD_COUNT * 32 ? 6 : value?.length === V5_RECORD_COUNT * 32 ? 5 : value?.length === V4_RECORD_COUNT * 32 ? 4 : 3) {
+    if (![1, 2, 3, 4, 5, 6].includes(version)) throw new Error("Unsupported CPS payload version");
     const input = bytes(value);
     const expected = recordCount(version) * RECORD_BYTES, memories = version >= 4 ? 256 : 32;
     if (input.length !== expected) throw new Error(`Expected ${expected} CPS bytes, got ${input.length}`);
     const global = input.subarray((memories + 2) * RECORD_BYTES, (memories + 3) * RECORD_BYTES);
-    if (global[13] > 1 || global.subarray(version < 3 ? 14 : version >= 4 ? 28 : 24).some((octet) => octet !== 0)) badRecord(memories + 2, "invalid inhibit or reserved bytes");
+    if (global[13] > 1 || global.subarray(version < 3 ? 14 : version >= 6 ? 30 : version >= 4 ? 28 : 24).some((octet) => octet !== 0)
+        || version>=6 && global[29]>1) badRecord(memories + 2, "invalid inhibit or reserved bytes");
     const data = new DataView(global.buffer, global.byteOffset, global.byteLength);
     const model = {
         channels: Array.from({ length: memories }, (_, index) => readChannel(input, index, version)),
@@ -446,6 +500,20 @@ export function decodePayload(value, version = value?.length === RECORD_COUNT * 
         if(!(flags&1) || flags&~15 || !(flags&6) || record.subarray(28).some(x=>x))badRecord(index,'invalid contact flags or padding');
         return {protocol:{2:'P25',4:'DMR',6:'Both'}[flags&6],type:flags&8?'group':'unit',id:record[1]|record[2]<<8|record[3]<<16,name:readName(record.subarray(4,28),index,24)};
     });
+    if(version>=6) {
+        model.settings.trunkSystem=global[28];model.settings.trunkStartAtBoot=Boolean(global[29]);
+        model.trunkSystems=Array.from({length:8},(_,i)=>{
+            const key=483+i*2,record=input.subarray(key*32,(key+2)*32),data=new DataView(record.buffer,record.byteOffset,64);
+            if(!record.some(x=>x))return null;
+            const count=record[13];
+            if(!record[0] || record[12]>1 || count<1 || count>8 || record.subarray(28,32).some(x=>x)
+                || record.subarray(32+count*4).some(x=>x))badRecord(key,'invalid trunking descriptor or control padding');
+            return {name:readName(record,key),mode:record[12]?'experimental':'rx-only',wacn:record[14]|record[15]<<8|record[16]<<16,
+                systemId:data.getUint16(17,true),nac:data.getUint16(19,true),rfss:record[21],site:record[22],
+                sourceId:record[23]|record[24]<<8|record[25]<<16,talkgroup:data.getUint16(26,true),
+                controls:Array.from({length:count},(_,n)=>data.getUint32(32+4*n,true))};
+        });
+    }
     requireValid(model);
     return model;
 }
@@ -466,6 +534,7 @@ export function createDefaultModel(version = 5) {
         model.zones = Array(16).fill(null); model.scanLists = Array(16).fill(null);
     }
     if(version>=5){model.contacts=Array(CONTACT_COUNT).fill(null);for(const channel of model.vfos)Object.assign(channel,{privateCall:false,destinationId:1});}
+    if(version>=6){model.trunkSystems=Array(8).fill(null);Object.assign(model.settings,{trunkSystem:0,trunkStartAtBoot:false});}
     return model;
 }
 
@@ -520,7 +589,7 @@ export function importFile(text) {
     try { file = JSON.parse(text); } catch { throw new Error("Invalid CPS JSON file"); }
     const keys = ["format", "version", "payload", "crc32", "origin"];
     if (!object(file) || Object.keys(file).length !== keys.length || keys.some((key) => !Object.hasOwn(file, key))) throw new Error("Unrecognized CPS file fields");
-    if (file.format !== "DM32P25-CPS" || ![1, 2, 3, 4, 5].includes(file.version)) throw new Error("Unsupported CPS file format or version");
+    if (file.format !== "DM32P25-CPS" || ![1, 2, 3, 4, 5, 6].includes(file.version)) throw new Error("Unsupported CPS file format or version");
     if (typeof file.payload !== "string" || file.payload.length !== recordCount(file.version) * 64 || !/^[0-9a-f]+$/i.test(file.payload)) throw new Error("Invalid or truncated CPS payload");
     if (typeof file.crc32 !== "string" || !/^[0-9a-f]{8}$/i.test(file.crc32)) throw new Error("Invalid CPS checksum");
     const payload = Uint8Array.from(file.payload.match(/../g), (pair) => parseInt(pair, 16));
@@ -532,10 +601,10 @@ export function importFile(text) {
 export function upgradeModel(legacy, targetVersion = 5) {
     requireValid(legacy);
     const version=modelVersion(legacy);
-    if(![4,5].includes(targetVersion) || version>targetVersion)throw new Error("Upgrade must target V4 or V5 without discarding newer fields");
+    if(![4,5,6].includes(targetVersion) || version>targetVersion)throw new Error("Upgrade must target V4, V5 or V6 without discarding newer fields");
     if(version===targetVersion)return structuredClone(legacy);
     let model;
-    if(version===4)model=structuredClone(legacy);
+    if(version>=4)model=structuredClone(legacy);
     else {
         model=createDefaultModel(4);
         Object.assign(model.settings,structuredClone(legacy.settings));
@@ -548,8 +617,11 @@ export function upgradeModel(legacy, targetVersion = 5) {
         for(const channel of [...model.channels,...model.vfos])if(channel)channel.scanLists=[];
     }
     if(targetVersion===4){requireValid(model);return model;}
-    model.contacts=Array(CONTACT_COUNT).fill(null);
-    for(const channel of [...model.channels,...model.vfos])if(channel?.mode==='P25')Object.assign(channel,{privateCall:false,destinationId:1});
+    if(version<5) {
+        model.contacts=Array(CONTACT_COUNT).fill(null);
+        for(const channel of [...model.channels,...model.vfos])if(channel?.mode==='P25')Object.assign(channel,{privateCall:false,destinationId:1});
+    }
+    if(targetVersion>=6){model.trunkSystems=Array(8).fill(null);Object.assign(model.settings,{trunkSystem:0,trunkStartAtBoot:false});}
     requireValid(model);
     return model;
 }
