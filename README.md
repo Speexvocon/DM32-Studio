@@ -261,7 +261,7 @@ See [upstream provenance](UPSTREAM.md) and the
 has no program-flash, bootloader, calibration or raw-address commands. The
 separate message service can explicitly transmit reviewed text. The separate
 **Firmware** page uses the factory updater and a pinned RAM reader; see
-[browser installation](firmware-assets/3cbd328/README.md). Its file and serial sessions do not
+[browser installation](firmware-assets/d53b224/README.md). Its file and serial sessions do not
 share an open CPS programming connection. CLI installation and recovery tools
 remain available.
 
@@ -270,7 +270,7 @@ multimode firmware; support is planned. The Firmware page provides a separate
 **Backup / full dump only** mode so owners can save matching reads of the full
 1 MiB program and 16 MiB data flash, download a ZIP, and send it privately to the
 maintainer. No supported codec is needed to create this diagnostic dump, and no
-upload occurs. See [dump and sharing instructions](firmware-assets/3cbd328/README.md#save-a-full-dump-to-send-privately).
+upload occurs. See [dump and sharing instructions](firmware-assets/d53b224/README.md#save-a-full-dump-to-send-privately).
 
 ## Checks
 
